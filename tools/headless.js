@@ -17,21 +17,24 @@ const t0 = Date.now();
 for (let y = 0; y < years; y++) {
   if (y > 0) sim.nextYear();
   while (!sim.ended) sim.step();
+  const act = sim.rankedHeroes().length, free = sim.villains.filter((v) => v.status === 'free' && v.kind === 'villain').length;
+  console.log(`year ${sim.year}: active ${act} freeV ${free} orgs ${sim.orgs.filter((o) => o.status === 'active').length} champ ${sim.ranked[0].name} hof ${sim.log.filter((l) => l.t === 'hof' && l.y === sim.year).length} legacy ${sim.log.filter((l) => l.t === 'legacy' && l.y === sim.year).length} deaths ${sim.st.deaths} retired ${sim.st.retired} save ${(JSON.stringify(sim).length / 1e6).toFixed(2)}MB`);
 }
+console.log('log types', JSON.stringify(sim.log.reduce((m, l) => ((m[l.t] = (m[l.t] || 0) + 1), m), {})));
 console.log(`time ${Date.now() - t0}ms  news ${sim.news.length}  heroes ${sim.heroes.length}  villains ${sim.villains.length}`);
 console.log('stats', JSON.stringify(sim.st));
 const cats = {};
-for (const n of sim.news) cats[n.cat] = (cats[n.cat] || 0) + 1;
+for (const n of sim.news.filter(Boolean)) cats[n.cat] = (cats[n.cat] || 0) + 1;
 console.log('cats', JSON.stringify(cats));
-console.log('imp3', sim.news.filter((n) => n.imp === 3).length);
+console.log('imp3', sim.news.filter((n) => n && n.imp === 3).length);
 console.log('--- TOP 10');
 sim.ranked.slice(0, 10).forEach((h) => console.log(h.rank, h.name, h.power.name, Math.round(sim.score(h)), h.pref, h.agency));
 console.log('--- awards');
 for (const a of sim.awards.at(-1).list) console.log(a.title, sim.heroes[a.id].name, a.note);
 console.log('--- sample news');
-const pick = sim.news.filter((_, i) => i % Math.ceil(sim.news.length / 40) === 0);
+const pick = sim.news.filter((n, i) => n && n.y === sim.year && i % 120 === 0);
 for (const n of pick) console.log(G.fmtDate(n.y, n.d), `[${n.cat}${n.imp}]`, plain(n.text));
 console.log('--- status', JSON.stringify(sim.heroes.reduce((m, h) => ((m[h.status] = (m[h.status] || 0) + 1), m), {})));
 console.log('--- orgs', sim.orgs.map((o) => `${o.name}:${o.status}:${Math.round(o.strength)}:${Math.round(o.intel)}`).join(' / '));
-const bad = sim.news.filter((n) => /\{|\[|undefined|NaN/.test(n.text));
+const bad = sim.news.filter((n) => n && /\{|\[|undefined|NaN/.test(n.text));
 console.log('broken', bad.length, bad.slice(0, 5).map((n) => n.text));

@@ -43,13 +43,15 @@
       this.usedOrgNames = new Set();
       this.monthTop = [];
       this.awards = [];
+      this.log = [];
+      this.legacy = [];
       this.ended = false;
       this.st = this.newStats();
       this.build(opts.heroes || 340, opts.villains || 90);
     }
 
     newStats() {
-      return { inc: {}, out: { great: 0, win: 0, fail: 0, bad: 0 }, captures: 0, deaths: 0, scandals: 0, debuts: 0, retired: 0, kaijuDown: 0, fallen: 0, reformed: 0, escapes: 0, orgsDown: 0 };
+      return { monthly: Array.from({ length: 12 }, () => ({ inc: 0, solved: 0, sc: 0, dead: 0 })), pref: {}, inc: {}, out: { great: 0, win: 0, fail: 0, bad: 0 }, captures: 0, deaths: 0, scandals: 0, debuts: 0, retired: 0, kaijuDown: 0, fallen: 0, reformed: 0, escapes: 0, orgsDown: 0 };
     }
 
     build(nHero, nVillain) {
@@ -85,6 +87,13 @@
       return n;
     }
 
+    // 記録（殉職・引退・スキャンダルなどの一覧用）
+    logRec(t, o = {}) {
+      const n = this.news[this.news.length - 1];
+      this.log.push({ t, y: this.year, d: this.day, n: o.noNews ? null : n ? n.id : null, ...o });
+    }
+    get month() { return this.date.getMonth(); }
+
     activeHeroes() { return this.heroes.filter((h) => h.status === 'active'); }
     rankedHeroes() { return this.heroes.filter((h) => h.status === 'active' || h.status === 'off'); }
     score(h) { return h.points + h.fame * 0.4; }
@@ -99,7 +108,7 @@
     computeRanks() {
       const list = this.rankedHeroes().sort((a, b) => this.score(b) - this.score(a));
       for (const h of this.heroes) h.rank = null;
-      list.forEach((h, i) => (h.rank = i + 1));
+      list.forEach((h, i) => { h.rank = i + 1; if (h.bestRank === null || h.rank < h.bestRank) h.bestRank = h.rank; });
       this.ranked = list;
       return list;
     }
@@ -126,7 +135,7 @@
       this.orgEvents();
       this.relationEvents();
       if (R.chance(0.06)) this.post('world', 1, fill(R.pick(D.worldNews), { pct: R.int(48, 86), num: R.int(800, 4200) }));
-      if (!(m === 4 && dd === 1) && R.chance(0.06)) this.debut();
+      if (!(m === 4 && dd === 1) && R.chance(0.06) && this.ranked.length < 360) this.debut();
       this.populationControl();
 
       this.computeRanks();
@@ -171,7 +180,9 @@
       if (ev) this.post('world', 2, ev[2]);
       if (m === 4 && dd === 1) {
         const rookies = [];
-        for (let i = 0, n = R.int(14, 22); i < n; i++) rookies.push(this.debut(true));
+        const act = this.rankedHeroes().length;
+        for (let i = 0, n = clamp(Math.round((370 - act) / 2) + 14, 6, 26); i < n; i++) rookies.push(this.debut(true));
+        this.legacyDebuts();
         const best = rookies.slice().sort((a, b) => G.eff(b, { f: 0.5, r: 0.25, i: 0.25 }) - G.eff(a, { f: 0.5, r: 0.25, i: 0.25 }))[0];
         this.post('world', 3, `今年の新人は${rookies.length}名。中でも「${best.power.name}」を操る${H(best)}は首席卒業の逸材として注目を集めている。`, { h: [best] });
       }
@@ -268,6 +279,10 @@
       const ratio = (total * R.f(0.75, 1.3)) / (diff * R.f(0.8, 1.2));
       const out = ratio >= 1.5 ? 'great' : ratio >= 1.0 ? 'win' : ratio >= 0.72 ? 'fail' : 'bad';
       this.st.out[out]++;
+      this.st.pref[pref.name] = (this.st.pref[pref.name] || 0) + 1;
+      const mo = this.st.monthly[this.month];
+      mo.inc++;
+      if (out === 'great' || out === 'win') mo.solved++;
       const lead = order[0][0];
       const all = [lead, ...order.slice(1).map((x) => x[0])];
       ctx.h = H(lead);
@@ -290,6 +305,7 @@
         h.points = Math.max(0, h.points + pts);
         h.fame = Math.max(0, h.fame + diff * fm * share);
         h.yrec.pts += pts;
+        h.rec.pts += pts;
         for (const r of [h.rec, h.yrec]) {
           r.cases++;
           if (out === 'great' || out === 'win') { r.wins++; if (type === 'rescue' || type === 'disaster') r.rescues++; if (type === 'kaiju') r.kaiju++; } else if (out === 'bad') r.losses++;
@@ -324,6 +340,8 @@
       imp = this.impFor(imp, all);
       if (type === 'disaster' || type === 'kaiju') text = `【${D.bigHeadlines[type]}】` + text;
       this.post(cat, imp, text, { h: all, v: v ? [v] : [], o });
+      if (this.pendingKaiju) { this.logRec('kaiju', this.pendingKaiju); this.pendingKaiju = null; }
+      if (this.pendingOrgDown) { this.logRec('org', { o: this.pendingOrgDown, h: lead.id }); this.pendingOrgDown = null; }
 
       for (const h of deaths) this.die(h, v);
       for (const h of all) h.busy = true;
@@ -362,6 +380,7 @@
       if (v.kind === 'kaiju') {
         if (out === 'great' || out === 'win') { v.status = 'dead'; v.caughtBy.push(lead.id); this.st.kaijuDown++; }
         else { v.status = 'retreated'; v.wins++; v.escapes++; }
+        this.pendingKaiju = { v: v.id, h: lead.id, res: v.status === 'dead' ? '撃破' : '撤退', heroes: all.map((x) => x.id) };
         return;
       }
       if (out === 'great' || out === 'win') {
@@ -401,6 +420,7 @@
       if (out === 'great') {
         for (const m of members) if (m.status === 'free' && (m === boss || R.chance(0.85))) this.capture(m, lead);
         this.dissolveOrg(o);
+        this.pendingOrgDown = o.id;
         lead.fame += 60;
         return `${O(o)}は事実上の壊滅となった。`;
       }
@@ -424,10 +444,14 @@
 
     die(h, v) {
       h.status = 'dead';
+      h.endYear = this.year;
       this.st.deaths++;
+      this.st.monthly[this.month].dead++;
       this.leaveTeam(h);
       const by = v ? `${V(v)}との戦いで` : '救助活動中に';
       this.post('big', 3, `【訃報】${H(h)}が${by}殉職した。${typeof h.age === 'number' ? '享年' + h.age + '。' : ''}${R.pick(['葬儀には全国から多くのファンが参列した。', '現場には献花が絶えない。', '同僚ヒーローたちは悲しみに暮れている。', 'ヒーローたちは黙とうを捧げた。'])}`, { h: [h], v: v ? [v] : [] });
+      this.logRec('death', { h: h.id, v: v ? v.id : null, age: h.age, rank: h.rank, career: h.career });
+      this.afterCareer(h);
       if (h.spouse !== null && this.heroes[h.spouse].status === 'active') {
         const s = this.heroes[h.spouse];
         s.stats.men = Math.min(99, s.stats.men + 10);
@@ -453,7 +477,7 @@
         if (h.status !== 'active') continue;
         if (R.chance(0.0009 * md * (0.5 + h.stats.cha / 100) * (1 + Math.min(h.fame, 600) / 300))) { this.mediaEvent(h); continue; }
         if (R.chance(0.0006)) { this.lifeEvent(h); continue; }
-        const ap = typeof h.age === 'number' && h.age > 40 ? 0.00007 * Math.pow(h.age - 40, 1.4) : 0.00001;
+        const ap = (typeof h.age === 'number' && h.age > 35 ? 0.00008 * Math.pow(h.age - 35, 1.35) : 0.00002) + (h.career > 12 ? 0.00004 * (h.career - 12) : 0);
         if (R.chance(ap)) this.retire(h);
       }
     }
@@ -466,32 +490,41 @@
       h.rec.scandals++;
       h.yrec.scandals++;
       this.st.scandals++;
+      this.st.monthly[this.month].sc++;
       const sev = s.sev;
+      let act = 'apology';
       h.fame = Math.max(0, h.fame - [0, 20, 45, 90][sev] * R.f(0.7, 1.3));
       h.points *= 1 - [0, 0.03, 0.08, 0.16][sev];
       const Rx = D.scandalReact;
       if (sev === 1) {
-        text += fill(R.pick(R.chance(0.7) ? Rx.apology : Rx.deny), { h: H(h) });
-        if (R.chance(0.15)) { text += R.pick(Rx.twist); h.fame += 40; }
+        const ap = R.chance(0.7);
+        if (!ap) act = 'deny';
+        text += fill(R.pick(ap ? Rx.apology : Rx.deny), { h: H(h) });
+        if (R.chance(0.15)) { text += R.pick(Rx.twist); h.fame += 40; act = 'twist'; }
       } else if (sev === 2) {
         text += fill(R.pick(Rx.apology), { h: H(h) });
-        if (R.chance(0.4)) { text += fill(R.pick(Rx.suspend), { h: H(h) }); this.suspend(h, R.int(14, 45)); }
-        else if (R.chance(0.1)) { text += R.pick(Rx.twist); h.fame += 50; }
+        if (R.chance(0.4)) { text += fill(R.pick(Rx.suspend), { h: H(h) }); this.suspend(h, R.int(14, 45)); act = 'suspend'; }
+        else if (R.chance(0.1)) { text += R.pick(Rx.twist); h.fame += 50; act = 'twist'; }
       } else {
         const r = R.f();
         if (r < 0.25) {
           text += fill(R.pick(Rx.arrest), { h: H(h) });
-          if (h.stats.mor < 40 && R.chance(0.5)) { this.post('scandal', 3, text, { h: [h] }); this.fall(h, '有罪判決を受けて表舞台から消え'); return; }
+          act = 'arrest';
+          if (h.stats.mor < 40 && R.chance(0.5)) { this.post('scandal', 3, text, { h: [h] }); this.logRec('scandal', { h: h.id, sev, act }); this.fall(h, '有罪判決を受けて表舞台から消え'); return; }
           h.status = 'retired';
           h.retireReason = '免許はく奪';
+          h.endYear = this.year;
           this.leaveTeam(h);
         } else if (r < 0.75) {
           text += fill(R.pick(Rx.suspend), { h: H(h) });
           this.suspend(h, R.int(45, 120));
-        } else text += fill(R.pick(Rx.deny), { h: H(h) });
+          act = 'suspend';
+        } else { text += fill(R.pick(Rx.deny), { h: H(h) }); act = 'deny'; }
       }
       h.stats.mor = Math.max(0, h.stats.mor - sev * 2);
       this.post('scandal', Math.min(3, sev + (this.isTop(h, 30) ? 1 : 0)), text, { h: [h] });
+      this.logRec('scandal', { h: h.id, sev, act, rank: h.rank });
+      if (act === 'arrest') this.logRec('retire', { h: h.id, reason: '免許はく奪', career: h.career, noNews: false });
     }
 
     suspend(h, days) {
@@ -544,15 +577,19 @@
     retire(h) {
       h.status = 'retired';
       h.retireReason = '引退';
+      h.endYear = this.year;
       this.st.retired++;
       this.leaveTeam(h);
       for (const id of h.apprentices) { const a = this.heroes[id]; if (a.mentor === h.id) a.mentor = null; }
       const text = fill(R.pick(D.retireLines), { h: H(h), years: Math.max(1, h.career) });
       this.post('life', this.isTop(h, 50) || h.career > 20 ? 3 : 2, text, { h: [h] });
+      this.logRec('retire', { h: h.id, reason: '引退', career: h.career, age: h.age, best: h.bestRank });
+      this.afterCareer(h);
     }
 
     fall(h, how) {
       h.status = 'fallen';
+      h.endYear = this.year;
       this.st.fallen++;
       this.leaveTeam(h);
       const v = Gen.villain(this, { pref: this.prefObj(h.pref), power: h.power, name: Gen.uniq(this, () => R.pick(['ダーク', 'ブラック・', 'カオス・', '堕天', 'ネオ・']) + h.name), formerHero: h.id });
@@ -568,6 +605,7 @@
       h.villainId = v.id;
       if (h.rival !== null) { const r = this.heroes[h.rival]; if (r.status === 'active') { v.nemesis = r.id; r.nemesis = v.id; } }
       this.post('villain', 3, `【衝撃】元ヒーローの${H(h)}が${how}、ヴィラン${V(v)}として活動を始めたことが確認された。${R.pick(['かつてのファンは言葉を失っている。', '超常対策庁は最重要警戒対象に指定した。', '「信じられない」と元同僚は語った。'])}`, { h: [h], v: [v] });
+      this.logRec('fallen', { h: h.id, v: v.id });
     }
 
     debut(batch) {
@@ -587,7 +625,8 @@
 
     // ---------- ヴィラン ----------
     villainEvents() {
-      if (R.chance(0.3)) this.newVillain();
+      const free0 = this.villains.filter((v) => v.status === 'free' && v.kind === 'villain').length;
+      if (R.chance(free0 < 70 ? 0.3 : 0.08)) this.newVillain();
       const free = this.villains.filter((v) => v.status === 'free' && v.kind === 'villain');
       if (free.length > 2 && R.chance(0.025)) {
         const [a, b] = R.wsample(free, 2, (x) => 1 + x.notoriety);
@@ -627,6 +666,7 @@
       const savior = v.caughtBy.length ? this.heroes[v.caughtBy[v.caughtBy.length - 1]] : v.nemesis !== null ? this.heroes[v.nemesis] : null;
       const why = savior ? `${H(savior)}との戦いを通じて改心したという。` : R.pick(['ある少女に命を救われたのがきっかけだという。', '服役中に読んだ一冊の本が転機になったという。']);
       this.post('villain', 2, `【改心】ヴィラン${V(v)}が罪を償った上で、ヒーロー${H(h)}として再出発することを発表した。${why}`, { v: [v], h: savior ? [h, savior] : [h] });
+      this.logRec('reform', { v: v.id, h: h.id, by: savior ? savior.id : null });
     }
 
     // ---------- 組織 ----------
@@ -658,6 +698,7 @@
           } else if (!members.length) {
             this.dissolveOrg(o);
             this.post('villain', 2, `首領を失った${O(o)}が解散状態となったと超常対策庁が発表した。`, { o });
+            this.logRec('org', { o: o.id, h: null });
             continue;
           }
         }
@@ -666,7 +707,7 @@
           const lt = R.wpick(members, (v) => (v.orgRank === 'exec' ? 5 : v.orgRank === 'boss' ? 0.4 : 1));
           this.incident('org', { o, v: lt });
         }
-        if (R.chance(0.012)) {
+        if (R.chance(0.03)) {
           const rec = this.villains.filter((v) => v.status === 'free' && v.kind === 'villain' && v.org === null && v.formerHero === null);
           if (rec.length) {
             const v = R.wpick(rec, (x) => x.notoriety + 5);
@@ -675,13 +716,13 @@
             this.post('villain', 1, `ヴィラン${V(v)}が${O(o)}に加わったとの情報。${v.orgRank === 'exec' ? '幹部待遇とみられる。' : ''}`, { v: [v], o });
           }
         }
-        if (R.chance(0.004)) {
+        if (R.chance(0.01)) {
           const v = Gen.villain(this, { pref: this.prefObj(o.pref), talent: 60 });
           Gen.join(o, v, 'member');
           this.post('villain', 1, `${O(o)}が新たな改造兵士${V(v)}を投入したとの情報。`, { v: [v], o });
         }
       }
-      if (active.length < 6 && R.chance(0.012)) {
+      if (active.length < 6 && R.chance(active.length === 0 ? 0.1 : active.length < 4 ? 0.04 : 0.012)) {
         let tpl = R.pick(D.orgs.filter((t) => !this.usedOrgNames.has(t.name)));
         if (!tpl) {
           const base = R.pick(D.orgs);
@@ -735,6 +776,7 @@
             a.spouse = b.id; b.spouse = a.id; a.married = b.married = true;
             a.fame += 40; b.fame += 40;
             this.post('media', this.impFor(2, [a, b]), `交際中だった${H(a)}と${H(b)}が結婚を発表！[ヒーロー界のビッグカップル誕生に祝福の声が相次いだ。|式は二人が初めて共闘した現場の近くで挙げるという。]`, { h: [a, b] });
+            this.logRec('marry', { h: a.id, h2: b.id });
           } else {
             this.post('life', this.impFor(1, [a, b]), `${H(a)}と${H(b)}の破局が報じられた。${R.pick(['すれ違いの生活が原因とみられる。', '現在はよき戦友に戻ったという。', '出動先の取り合いがきっかけだったとの証言も。'])}`, { h: [a, b] });
           }
@@ -856,11 +898,53 @@
       if (kj) add('kaiju', kj, `怪獣撃破 ${kj.yrec.kaiju}体`);
       const sc = this.heroes.filter((h) => h.yrec.scandals > 0).sort((a, b) => b.yrec.scandals - a.yrec.scandals || b.fame - a.fame)[0];
       if (sc) add('scandal', sc, `スキャンダル ${sc.yrec.scandals}件`);
-      for (const a of aw) this.heroes[a.id].fame += a.key === 'scandal' ? 0 : 30;
-      this.awards.push({ year: this.year, list: aw, top10: this.ranked.slice(0, 10).map((h) => h.id), stats: { ...this.st } });
+      for (const a of aw) {
+        const h = this.heroes[a.id];
+        if (a.key !== 'scandal') h.fame += 30;
+        h.titles.push({ y: this.year, title: a.title });
+      }
+      const champ = this.ranked[0];
+      champ.titles.push({ y: this.year, title: '年間ランキング1位' });
+      this.monthTop.push({ y: this.year, m: 12, id: champ.id });
+      for (const h of this.ranked) h.yearRanks.push([this.year, h.rank]);
+      this.awards.push({ year: this.year, champ: champ.id, list: aw, top10: this.ranked.slice(0, 10).map((h) => h.id), stats: { ...this.st } });
       const t = aw.map((a) => `${a.title}は${H(this.heroes[a.id])}`).join('、');
       this.post('rank', 3, `【${this.year}年 ヒーロー年間表彰】${t}。そして年間ランキング1位に輝いたのは${H(this.ranked[0])}だった。`, { h: aw.map((a) => this.heroes[a.id]) });
       this.ended = true;
+    }
+
+    // 引退・殉職したヒーローの殿堂入りと、子どもの将来のデビュー
+    afterCareer(h) {
+      const v = h.rec.pts + h.titles.length * 900 + (h.bestRank === 1 ? 1500 : h.bestRank !== null && h.bestRank <= 5 ? 600 : 0);
+      if (v >= 4500 && h.career >= 5) {
+        h.hof = this.year;
+        this.post('rank', 3, `【殿堂入り】${H(h)}がヒーロー殿堂入りを果たした。活動${h.career}年、最高順位${h.bestRank}位、通算検挙${h.rec.captures}名。${h.titles.length ? '受賞歴' + h.titles.length + '回。' : ''}`, { h: [h] });
+        this.logRec('hof', { h: h.id, career: h.career, best: h.bestRank });
+      }
+      if ((h.career >= 8 || h.married || h.spouse !== null) && R.chance(0.35)) this.legacy.push({ parent: h.id, year: this.year + 1 + R.int(0, 4) });
+    }
+
+    legacyDebuts() {
+      const due = this.legacy.filter((l) => l.year <= this.year);
+      this.legacy = this.legacy.filter((l) => l.year > this.year);
+      for (const l of due) {
+        const p = this.heroes[l.parent];
+        const sameEl = D.powers.filter((x) => x.el === p.power.el);
+        const power = R.chance(0.55) ? p.power : R.pick(sameEl.length ? sameEl : D.powers);
+        const h = Gen.hero(this, { rookie: true, power, pref: this.prefObj(p.pref), age: R.int(16, 24), talent: 60 });
+        const second = '二代目' + p.name;
+        if (!this.usedNames.has(second) && R.chance(0.6)) { this.usedNames.delete(h.name); h.name = second; this.usedNames.add(second); }
+        const sur = String(p.real).split(' ')[0];
+        if (p.real !== '不明' && String(p.real).includes(' ')) h.real = sur + ' ' + String(h.real).split(' ').pop();
+        h.parent = p.id;
+        p.child = h.id;
+        h.debutYear = this.year;
+        h.motive = p.status === 'dead' ? '殉職した親の遺志を継ぐため' : '偉大な親を超えるため';
+        h.fame += 60;
+        this.st.debuts++;
+        this.post('life', 3, `【二世ヒーロー】${p.status === 'dead' ? '殉職した' : '元'}${H(p)}の子、${H(h)}がデビューした。${power === p.power ? '親と同じ「' + power.name + '」を受け継いでいる。' : '能力は「' + power.name + '」。'}`, { h: [h, p] });
+        this.logRec('legacy', { h: h.id, parent: p.id });
+      }
     }
 
     nextYear() {
@@ -872,11 +956,34 @@
         if (typeof h.age === 'number') h.age++;
         if (h.status === 'active' || h.status === 'off') h.career++;
         h.yrec = Gen.newRec();
-        h.points *= 0.85;
+        h.points *= 0.7;
         h.startRank = h.rank;
         h.rankHist = h.rank !== null ? [[0, h.rank]] : [];
       }
       for (const v of this.villains) if (typeof v.age === 'number') v.age++;
+      // 2年以上前の小さなニュースは捨てて、保存容量を抑える
+      for (let i = 0; i < this.news.length; i++) {
+        const n = this.news[i];
+        if (n && ((n.y < this.year - 1 && n.imp === 1) || (n.y < this.year - 5 && n.imp === 2))) this.news[i] = null;
+      }
+    }
+
+    // ---------- 保存 ----------
+    toJSON() {
+      const { ranked, today, ...rest } = this;
+      return { ...rest, usedNames: [...this.usedNames], usedOrgNames: [...this.usedOrgNames], rng: R.s, ver: 2 };
+    }
+
+    static fromJSON(o) {
+      if (!o || o.ver !== 2) return null;
+      const s = Object.create(Sim.prototype);
+      Object.assign(s, o);
+      s.usedNames = new Set(o.usedNames);
+      s.usedOrgNames = new Set(o.usedOrgNames);
+      s.today = [];
+      R.s = o.rng;
+      s.computeRanks();
+      return s;
     }
   }
 

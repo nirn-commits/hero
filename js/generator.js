@@ -106,6 +106,7 @@
       rec: newRec(), yrec: newRec(),
       rival: null, partner: null, spouse: null, team: null, mentor: null, apprentices: [], nemesis: null,
       hist: [], rankHist: [], busy: false, villainId: null, fromVillain: opts.fromVillain ?? null,
+      titles: [], yearRanks: [], bestRank: null, hof: null, parent: null, child: null,
     };
     if (!opts.rookie) {
       const e = G.eff(h, { f: 0.5, r: 0.25, i: 0.25 });

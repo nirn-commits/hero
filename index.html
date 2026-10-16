@@ -18,7 +18,7 @@
   <div class="top-in">
     <div class="brand">
       <h1>超人列島<span>クロニクル</span></h1>
-      <p class="seed">世界シード <b id="seedLabel">-</b></p>
+      <p class="seed">世界シード <b id="seedLabel">-</b><span id="saveLabel" class="saved"></span></p>
     </div>
     <div class="clock">
       <div id="dateLabel" class="date">----年--月--日</div>
@@ -41,11 +41,12 @@
 
 <nav class="tabs" role="tablist" aria-label="表示切り替え">
   <button type="button" class="tab only-narrow" data-tab="feed" id="tab-feed">ニュース</button>
+  <button type="button" class="tab" data-tab="dash" id="tab-dash">概況</button>
   <button type="button" class="tab" data-tab="rank" id="tab-rank">ランキング</button>
-  <button type="button" class="tab" data-tab="roster" id="tab-roster">ヒーロー名鑑</button>
+  <button type="button" class="tab" data-tab="records" id="tab-records">記録</button>
+  <button type="button" class="tab" data-tab="roster" id="tab-roster">名鑑</button>
   <button type="button" class="tab" data-tab="villain" id="tab-villain">ヴィラン</button>
   <button type="button" class="tab" data-tab="org" id="tab-org">組織・チーム</button>
-  <button type="button" class="tab" data-tab="almanac" id="tab-almanac">年鑑</button>
 </nav>
 
 <main class="layout">
@@ -54,7 +55,17 @@
     <div id="feed" class="feed"></div>
   </section>
   <section class="side" id="side">
-    <div class="pane" id="pane-rank"></div>
+    <div class="pane" id="pane-dash"></div>
+    <div class="pane" id="pane-rank" hidden></div>
+    <div class="pane" id="pane-records" hidden>
+      <div class="tools">
+        <div class="seg" id="recTypes" role="group" aria-label="記録の種類"></div>
+      </div>
+      <div class="tools">
+        <select id="recYear" aria-label="年"></select>
+      </div>
+      <div id="recBody"></div>
+    </div>
     <div class="pane" id="pane-roster" hidden>
       <div class="tools">
         <input id="rosterQ" type="search" placeholder="名前・能力・都道府県で検索" aria-label="ヒーローを検索">
@@ -86,7 +97,6 @@
       <div id="villainList"></div>
     </div>
     <div class="pane" id="pane-org" hidden></div>
-    <div class="pane" id="pane-almanac" hidden></div>
   </section>
 </main>
 
