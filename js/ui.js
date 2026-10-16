@@ -31,7 +31,7 @@
   let skipping = false;
   let ticks = 0;
   let countdown = null;
-  const ui = load({ speed: 2, tab: 'dash', cats: Object.keys(CAT), autoYear: true, recType: 'death', mapMetric: 'inc', size: 'm', noExtra: false, catsV: 1 });
+  const ui = load({ speed: 2, tab: 'dash', cats: Object.keys(CAT), autoYear: true, recType: 'death', mapMetric: 'inc', size: 'm', noExtra: false, catsV: 1, slot: 1 });
   // 「学園」の分類が増えた版より前の設定には、学園を足しておく
   if (ui.catsV < 2) { if (!ui.cats.includes('school')) ui.cats.push('school'); ui.catsV = 2; }
   ui.favs = new Set(); ui.favOnly = false; ui.sfavs = new Set(); ui.sfavDone = new Set();
@@ -46,7 +46,7 @@
     return def;
   }
   function save() {
-    try { localStorage.setItem('hero-ui', JSON.stringify({ speed: ui.speed, tab: ui.tab, cats: ui.cats, autoYear: ui.autoYear, recType: ui.recType, mapMetric: ui.mapMetric, size: ui.size, noExtra: ui.noExtra, catsV: ui.catsV })); } catch (e) { /* 無視 */ }
+    try { localStorage.setItem('hero-ui', JSON.stringify({ speed: ui.speed, tab: ui.tab, cats: ui.cats, autoYear: ui.autoYear, recType: ui.recType, mapMetric: ui.mapMetric, size: ui.size, noExtra: ui.noExtra, catsV: ui.catsV, slot: ui.slot })); } catch (e) { /* 無視 */ }
   }
 
   // ---------- 世界の保存（IndexedDB） ----------
@@ -75,15 +75,66 @@
         try { const tx = this.db.transaction('s', 'readwrite'); tx.objectStore('s').put(v, k); tx.oncomplete = () => res(true); tx.onerror = () => res(false); } catch (e) { res(false); }
       });
     },
+    del(k) {
+      return new Promise((res) => {
+        if (!this.db) return res(false);
+        try { const tx = this.db.transaction('s', 'readwrite'); tx.objectStore('s').delete(k); tx.oncomplete = () => res(true); tx.onerror = () => res(false); } catch (e) { res(false); }
+      });
+    },
   };
+  // セーブスロット（スロット1は以前からの保存場所をそのまま使う）
+  const SLOTS = [1, 2, 3];
+  if (!SLOTS.includes(ui.slot)) ui.slot = 1;
+  const slotKey = (n) => (n === 1 ? 'world' : 'world' + n);
+  const metaKey = (n) => 'meta' + n;
+  function slotMeta() {
+    const top = sim.ranked && sim.ranked[0];
+    return { seed: sim.seed, year: sim.year, day: lastDay(), years: sim.year - (sim.startYear ?? sim.year) + 1, champ: top ? top.name : '', heroes: sim.ranked ? sim.ranked.length : 0, era: sim.eraDef ? sim.eraDef().name : '', at: Date.now() };
+  }
   let saving = false;
   async function saveWorld() {
     if (!sim || saving || skipping) return;
     saving = true;
     let ok = false;
-    try { ok = await Store.put('world', JSON.stringify(sim)); } catch (e) { ok = false; }
+    try { ok = await Store.put(slotKey(ui.slot), JSON.stringify(sim)); if (ok) await Store.put(metaKey(ui.slot), JSON.stringify(slotMeta())); } catch (e) { ok = false; }
     saving = false;
-    $('#saveLabel').textContent = ok ? `自動保存 ${G.fmtDate(sim.year, lastDay())}` : '';
+    $('#saveLabel').textContent = ok ? `スロット${ui.slot}・自動保存 ${G.fmtDate(sim.year, lastDay())}` : '';
+  }
+  async function flushSave() {
+    for (let i = 0; i < 100 && saving; i++) await new Promise((r) => setTimeout(r, 30));
+    await saveWorld();
+  }
+  function updateSlotBtn() { $('#slotBtn').textContent = `スロット${ui.slot}`; }
+  async function showSlots() {
+    cancelCountdown();
+    const metas = {};
+    for (const n of SLOTS) {
+      if (n === ui.slot) { metas[n] = slotMeta(); continue; }
+      try { const m = await Store.get(metaKey(n)); metas[n] = m ? JSON.parse(m) : null; } catch (e) { metas[n] = null; }
+    }
+    const card = (n) => {
+      const m = metas[n], cur = n === ui.slot;
+      const body = m ? `<dl class="dl"><dt>世界シード</dt><dd>${esc(m.seed)}</dd><dt>日付</dt><dd>${m.years}年目　${G.fmtDate(m.year, m.day)}</dd><dt>時代</dt><dd>${esc(m.era)}</dd><dt>ランキング1位</dt><dd>${esc(m.champ)}</dd><dt>現役ヒーロー</dt><dd>${m.heroes}名</dd>${cur ? '' : `<dt>最後に遊んだ日</dt><dd>${new Date(m.at).toLocaleString('ja-JP', { dateStyle: 'medium', timeStyle: 'short' })}</dd>`}</dl>` : '<p class="empty">空き</p>';
+      const btns = cur ? '<p class="mapnote">遊んでいるスロットです。作り直すときは「新しい世界」を押してください。</p>'
+        : `<div class="btnrow"><button type="button" class="btn" data-slotgo="${n}">${m ? 'この世界を遊ぶ' : 'ここで新しい世界を始める'}</button>${m ? `<button type="button" class="btn alt" data-slotdel="${n}">消す</button>` : ''}</div>`;
+      return `<section class="slotcard${cur ? ' cur' : ''}"><h3>スロット${n}${cur ? '<span class="st ok-st">使用中</span>' : ''}</h3>${body}${btns}</section>`;
+    };
+    openModal(`<h2 class="yearend-title" id="modalTitle">セーブスロット</h2>
+      <p class="bio">3つの世界を別々に保存できます。切り替えると、いまの世界は自動で保存されます。</p>
+      <div class="slots">${SLOTS.map(card).join('')}</div>
+      <p class="mapnote">推し・予想・目標は世界シードごとに記録されるため、同じシードの世界どうしでは共有されます。</p>`);
+  }
+  async function switchSlot(n) {
+    if (skipping || n === ui.slot) return;
+    stop(); cancelCountdown(); closeExtra(false);
+    await flushSave();
+    ui.slot = n; save();
+    closeModal();
+    let s2 = null;
+    try { const raw = await Store.get(slotKey(n)); if (raw) s2 = G.Sim.fromJSON(JSON.parse(raw)); } catch (e) { s2 = null; }
+    $('#feed').innerHTML = '';
+    updateSlotBtn();
+    if (s2) resumeWorld(s2); else newWorld(randomSeed());
   }
 
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -1316,7 +1367,7 @@
   function showNewWorld() {
     cancelCountdown();
     openModal(`<h2 class="yearend-title" id="modalTitle">新しい世界を作る</h2>
-      <p class="bio">今の世界（${esc(sim.seed)}・${sim.year}年）は上書きされ、元に戻せません。ヒーロー・ヴィラン・組織をすべて作り直して1年目から始めます。同じシードを入れると同じ顔ぶれの世界になります。</p>
+      <p class="bio">スロット${ui.slot}の今の世界（${esc(sim.seed)}・${sim.year}年）は上書きされ、元に戻せません。残しておきたいときは、先に「スロット」から別のスロットに切り替えてください。ヒーロー・ヴィラン・組織をすべて作り直して1年目から始めます。同じシードを入れると同じ顔ぶれの世界になります。</p>
       <div class="field"><input id="seedInput" type="text" value="${esc(randomSeed())}" aria-label="世界シード"><button type="button" class="btn" id="seedGo">この世界で始める</button></div>
       <div class="btnrow"><button type="button" class="btn alt" id="cancelNew">今の世界を続ける</button></div>`);
   }
@@ -1396,6 +1447,16 @@
       if (id === 'nextYearBtn') { nextYear(); return; }
       if (id === 'seedGo') { const s = $('#seedInput').value.trim(); closeModal(); newWorld(s || randomSeed()); return; }
       if (id === 'newBtn' || e.target.dataset.act === 'new') { showNewWorld(); return; }
+      if (id === 'slotBtn') { showSlots(); return; }
+      const sg = e.target.closest('[data-slotgo]');
+      if (sg) { switchSlot(+sg.dataset.slotgo); return; }
+      const sd = e.target.closest('[data-slotdel]');
+      if (sd) {
+        const n = +sd.dataset.slotdel;
+        if (sd.dataset.sure !== '1') { sd.dataset.sure = '1'; sd.textContent = '本当に消す（元に戻せません）'; return; }
+        Store.del(slotKey(n)).then(() => Store.del(metaKey(n))).then(showSlots);
+        return;
+      }
       if (id === 'skipBtn') skipToEnd();
       if (id === 'extraGo') { closeExtra(true); return; }
       if (id === 'extraStay') { closeExtra(false); return; }
@@ -1439,7 +1500,8 @@
     if (ui.tab === 'almanac') ui.tab = 'dash';
     await Store.open();
     let saved = null;
-    try { const raw = await Store.get('world'); if (raw) saved = G.Sim.fromJSON(JSON.parse(raw)); } catch (e) { saved = null; }
+    updateSlotBtn();
+    try { const raw = await Store.get(slotKey(ui.slot)); if (raw) saved = G.Sim.fromJSON(JSON.parse(raw)); } catch (e) { saved = null; }
     if (saved) resumeWorld(saved); else newWorld(randomSeed());
     setTab(ui.tab);
   }

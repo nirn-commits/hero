@@ -649,3 +649,11 @@ h4.sect { font-size: 0.82rem; letter-spacing: 0.12em; color: var(--ink); margin:
 #tab-school { color: var(--k-school); }
 #tab-school[aria-selected="true"] { border-bottom-color: var(--k-school); }
 .schhead .kpis { margin: 0; }
+
+/* ===== セーブスロット ===== */
+.slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 10px; margin: 12px 0; }
+.slotcard { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.slotcard.cur { border-color: var(--good); box-shadow: inset 0 3px 0 var(--good); }
+.slotcard h3 { margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 6px; }
+.slotcard .empty { padding: 8px 0; }
+.slotcard .btnrow { margin-top: auto; }
