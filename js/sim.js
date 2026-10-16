@@ -51,6 +51,7 @@
       this.ensureStory();
       this.ensureVoice();
       this.ensureDrama();
+      this.ensureAcademy();
       this.agencyStats();
       if (this.ranked[0]) this.ranked[0].ms.push('top1');
     }
@@ -91,6 +92,8 @@
       const bz = [0, 1, 3, 8][imp] * (cat === 'scandal' ? 1.5 : 1);
       for (const h of hs) { h.hist.push(n.id); h.buzz = (h.buzz || 0) + bz; }
       for (const v of new Set(refs.v || [])) if (v) v.hist.push(n.id);
+      const ss = [...new Set((refs.s || []).filter(Boolean))];
+      if (ss.length) { n.s = ss.map((x) => x.id); for (const x of ss) x.hist.push(n.id); }
       if (refs.o) refs.o.hist.push(n.id);
       return n;
     }
@@ -141,6 +144,7 @@
       this.bondDaily();
       this.voiceDaily();
       this.dramaDaily(m, dd);
+      this.academyDaily(m, dd);
       this.incidents(m);
       this.heroEvents();
       this.villainEvents();
@@ -194,10 +198,12 @@
       if (m === 4 && dd === 1) {
         const rookies = [];
         const act = this.rankedHeroes().length;
-        for (let i = 0, n = clamp(Math.round(((370 - act) / 2 + 14) * this.mod('debut')), 6, 34); i < n; i++) rookies.push(this.debut(true));
+        const grads = this.academyGraduate();
+        for (let i = 0, n = clamp(Math.round(((370 - act) / 2 + 14) * this.mod('debut')), 6, 34) - grads.length; i < Math.max(2, n); i++) rookies.push(this.debut(true));
         this.legacyDebuts();
-        const best = rookies.slice().sort((a, b) => G.eff(b, { f: 0.5, r: 0.25, i: 0.25 }) - G.eff(a, { f: 0.5, r: 0.25, i: 0.25 }))[0];
-        this.post('world', 3, `今年の新人は${rookies.length}名。中でも「${best.power.name}」を操る${H(best)}は首席卒業の逸材として注目を集めている。`, { h: [best] });
+        const all = rookies.concat(grads);
+        const best = all.slice().sort((a, b) => G.eff(b, { f: 0.5, r: 0.25, i: 0.25 }) - G.eff(a, { f: 0.5, r: 0.25, i: 0.25 }))[0];
+        this.post('world', 3, `今年の新人は${all.length}名${grads.length ? `（うち養成校の卒業生${grads.length}名）` : ''}。中でも「${best.power.name}」を操る${H(best)}は${best.sid !== undefined ? `${D.academies[this.students[best.sid].school].short}出身の` : ''}逸材として注目を集めている。`, { h: [best] });
       }
       if (m === 2 && dd === 14) {
         const top = this.rankedHeroes().sort((a, b) => b.fame * R.f(0.7, 1.3) - a.fame * R.f(0.7, 1.3)).slice(0, 3);
@@ -510,6 +516,8 @@
 
     // ---------- ヒーロー個人のイベント ----------
     heroEvents() {
+      // 現役が多すぎるときは、ベテランの引退が少し早まる
+      const crowd = 1 + Math.max(0, (this.ranked ? this.ranked.length : 0) - 365) / 12;
       for (const h of this.heroes) {
         if (h.status !== 'active' && h.status !== 'off') continue;
         const tr = h.traits.map(Gen.traitObj);
@@ -519,7 +527,7 @@
         if (R.chance(0.0009 * md * this.mod('media') * (0.5 + h.stats.cha / 100) * (1 + Math.min(h.fame, 600) / 300))) { this.mediaEvent(h); continue; }
         if (R.chance(0.0006)) { this.lifeEvent(h); continue; }
         const ap = (typeof h.age === 'number' && h.age > 35 ? 0.00008 * Math.pow(h.age - 35, 1.35) : 0.00002) + (h.career > 12 ? 0.00004 * (h.career - 12) : 0);
-        if (R.chance(ap)) this.retire(h);
+        if (R.chance(ap * crowd)) this.retire(h);
       }
     }
 
@@ -1023,6 +1031,7 @@
         h.rankHist = h.rank !== null ? [[0, h.rank]] : [];
       }
       this.storyNewYear();
+      this.academyNewYear();
       for (const v of this.villains) if (typeof v.age === 'number') v.age++;
       // 2年以上前の小さなニュースは捨てて、保存容量を抑える
       for (let i = 0; i < this.news.length; i++) {
@@ -1049,6 +1058,7 @@
       s.ensureStory();
       s.ensureVoice();
       s.ensureDrama();
+      s.ensureAcademy();
       return s;
     }
   }

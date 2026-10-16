@@ -80,24 +80,24 @@
   }
 
   function hero(sim, opts = {}) {
-    const gender = R.chance(0.05) ? '不明' : R.chance(0.42) ? '女' : '男';
+    const gender = opts.gender || (R.chance(0.05) ? '不明' : R.chance(0.42) ? '女' : '男');
     const age = opts.age || (opts.rookie ? R.int(15, 28) : clamp(Math.round(R.gauss(32, 10)), 16, 78));
     const pref = opts.pref || pickPrefObj();
     const power = opts.power || pickPower(opts.tierBias || 0);
     const rn = realName(gender);
     const traits = opts.traits || pickTraits();
     const talent = clamp(R.gauss(opts.talent || 52, 14), 18, 96);
-    const stats = makeStats(talent);
+    const stats = opts.stats ? { ...opts.stats } : makeStats(talent);
     const morBase = traits.reduce((m, t) => m + (traitObj(t) ? traitObj(t).mor : 0), 0);
-    stats.mor = Math.round(clamp(R.gauss(66, 14) + morBase, 5, 100));
+    if (!opts.stats) stats.mor = Math.round(clamp(R.gauss(66, 14) + morBase, 5, 100));
     const career = opts.rookie ? 0 : R.int(0, clamp(age - 16, 0, 35));
     const gotochiName = R.chance(0.07);
-    const name = uniq(sim, () => (gotochiName ? R.pick(pref.sp) + R.pick(D.gotochiSuffix) : heroNameRaw(gender, power, pref)));
+    const name = opts.name || uniq(sim, () => (gotochiName ? R.pick(pref.sp) + R.pick(D.gotochiSuffix) : heroNameRaw(gender, power, pref)));
     const originT = power.skill ? R.pick(D.skillOrigins) : R.pick(D.origins);
     const h = {
       kind: 'hero', id: sim.heroes.length, name, oldNames: [],
-      real: typeof rn === 'string' ? rn : rn.full, masked: R.chance(0.18) || gender === '不明',
-      gender, age, pref: pref.name, city: R.pick(pref.cities), region: pref.region,
+      real: opts.real || (typeof rn === 'string' ? rn : rn.full), masked: R.chance(0.18) || gender === '不明',
+      gender, age, pref: pref.name, city: opts.city || R.pick(pref.cities), region: pref.region,
       power, tierBonus: 0, stats, traits,
       origin: fill(originT, { power: `「${power.name}」` }), motive: R.pick(D.motives), quirk: R.pick(D.quirks),
       job: opts.job || pickJob(age), agency: pickAgency(pref, gotochiName),
@@ -246,5 +246,5 @@
     return R.pick(D.teamKanji) + R.pick(D.teamWords);
   }
 
-  G.Gen = { profile, hero, villain, kaiju, org, join, teamName, heroNameRaw, villainNameRaw, uniq, pickPrefObj, threatOf, traitObj, newRec };
+  G.Gen = { profile, hero, pickPower, realName, pickTraits, makeStats, pickAgency, villain, kaiju, org, join, teamName, heroNameRaw, villainNameRaw, uniq, pickPrefObj, threatOf, traitObj, newRec };
 })(globalThis.HG = globalThis.HG || {});

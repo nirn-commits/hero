@@ -2,14 +2,14 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-for (const f of ['core', 'data_names', 'data_world', 'data_powers', 'data_people', 'data_events', 'data_story', 'data_more', 'data_more2', 'data_bond', 'data_voice', 'data_voice2', 'data_drama', 'generator', 'sim', 'story', 'bond', 'voice', 'drama']) {
+for (const f of ['core', 'data_names', 'data_world', 'data_powers', 'data_people', 'data_events', 'data_story', 'data_more', 'data_more2', 'data_bond', 'data_voice', 'data_voice2', 'data_drama', 'data_school', 'generator', 'sim', 'story', 'bond', 'voice', 'drama', 'academy']) {
   vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'js', f + '.js'), 'utf8'), { filename: f + '.js' });
 }
 const G = globalThis.HG;
 const seed = process.argv[2] || 'test';
 const years = Number(process.argv[3] || 1);
 const sim = new G.Sim(seed);
-const plain = (t) => t.replace(/⟦([hvot])(\d+)⟧/g, (m, k, id) => {
+const plain = (t) => t.replace(/⟦s(\d+)⟧/g, (m, id) => sim.students[id].real).replace(/⟦([hvot])(\d+)⟧/g, (m, k, id) => {
   const e = k === 'h' ? sim.heroes[id] : k === 'v' ? sim.villains[id] : k === 'o' ? sim.orgs[id] : sim.teams[id];
   return k === 'h' ? e.name : k === 'v' ? `〈${e.name}〉` : k === 'o' ? `『${e.name}』` : `「${e.name}」`;
 });
@@ -38,3 +38,7 @@ console.log('--- status', JSON.stringify(sim.heroes.reduce((m, h) => ((m[h.statu
 console.log('--- orgs', sim.orgs.map((o) => `${o.name}:${o.status}:${Math.round(o.strength)}:${Math.round(o.intel)}`).join(' / '));
 const bad = sim.news.filter((n) => n && /\{|\[|undefined|NaN/.test(n.text));
 console.log('broken', bad.length, bad.slice(0, 5).map((n) => n.text));
+// 学園
+const stu = sim.students.reduce((m, s) => ((m[s.status] = (m[s.status] || 0) + 1), m), {});
+console.log('--- students', JSON.stringify(stu), 'grads', JSON.stringify(sim.log.filter((l) => l.t === 'grad').reduce((m, l) => ((m[l.y + (l.h !== null ? 'H' : 'O')] = (m[l.y + (l.h !== null ? 'H' : 'O')] || 0) + 1), m), {})));
+for (const n of sim.news.filter((n) => n && n.cat === 'school' && n.y === sim.year).filter((n, i) => i % 25 === 0)) console.log(G.fmtDate(n.y, n.d), plain(n.text));

@@ -622,3 +622,30 @@ h4.sect { font-size: 0.82rem; letter-spacing: 0.12em; color: var(--ink); margin:
 .srank li { display: grid; grid-template-columns: 5em minmax(0, 1fr) 2.5em; gap: 6px; align-items: center; }
 .srank .bar { margin-top: 0; height: 6px; }
 .srank .nu { text-align: right; font-variant-numeric: tabular-nums; color: var(--mute); font-size: 0.75rem; }
+
+/* ===== 学園 ===== */
+:root { --k-school: #0e7490; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --k-school: #38bdf8; } }
+:root[data-theme="dark"] { --k-school: #38bdf8; }
+.k-school, .c-school { --kc: var(--k-school); }
+.it.c-school.i3 { border-left-color: var(--k-school); }
+.nm.s { color: var(--k-school); text-decoration-color: color-mix(in srgb, var(--k-school) 40%, transparent); }
+.em.sch { background: var(--sc); color: #fff; }
+.schtabs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 6px; margin-bottom: 12px; }
+.schtab { text-align: left; border: 1px solid var(--line); border-left: 4px solid var(--sc); background: var(--panel); border-radius: 6px; padding: 6px 10px; color: var(--ink); }
+.schtab b { display: block; font-size: 0.95rem; }
+.schtab small { color: var(--mute); font-size: 0.72rem; }
+.schtab[aria-pressed="true"] { background: color-mix(in srgb, var(--sc) 14%, var(--panel)); border-color: var(--sc); }
+.schhead { background: var(--panel); border: 1px solid var(--line); border-top: 4px solid var(--sc); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+.schhead h3 { margin: 0 0 4px; font-size: 1.1rem; }
+.schhead p { margin: 0; font-size: 0.86rem; }
+.schhead .motto { font-weight: 700; color: var(--sc); margin-top: 4px; }
+.kpis.sm { grid-template-columns: repeat(auto-fill, minmax(min(100%, 120px), 1fr)); }
+.kpis.sm .kpi b { font-size: 1.5rem; }
+.srk .who > div { min-width: 0; }
+.srk .sto { display: block; font-size: 0.76rem; color: var(--ink); margin-top: 1px; }
+.sscore { font-family: var(--f-num); font-size: 1.2rem; font-weight: 400; }
+.favcard.stu { border-top-color: var(--sc); }
+#tab-school { color: var(--k-school); }
+#tab-school[aria-selected="true"] { border-bottom-color: var(--k-school); }
+.schhead .kpis { margin: 0; }
