@@ -15,7 +15,7 @@
     body: ['体', 0], tech: ['機', 186], sound: ['音', 330], poison: ['毒', 285], luck: ['運', 70], gravity: ['重', 230], life: ['命', 345], odd: ['奇', 168],
   };
   const REC_GROUPS = [
-    ['ヒーロー', [['death', '殉職'], ['retire', '引退'], ['scandal', 'スキャンダル'], ['hof', '殿堂入り'], ['legacy', '二世'], ['inherit', '継承'], ['milestone', '節目']]],
+    ['ヒーロー', [['death', '殉職'], ['retire', '引退'], ['scandal', 'スキャンダル'], ['hof', '殿堂入り'], ['legacy', '二世'], ['inherit', '継承'], ['milestone', '節目'], ['comeback', '現役復帰'], ['after', '引退後の消息']]],
     ['物語', [['saga', '宿敵の決着'], ['boss', '黒幕'], ['fallen', '闇堕ち'], ['reform', '改心'], ['kaiju', '怪獣'], ['org', '組織壊滅']]],
     ['社会', [['era', '時代'], ['policy', '世論・制度'], ['agency', '事務所'], ['marry', '結婚']]],
     ['年表', [['chronicle', '年代記'], ['awards', '歴代表彰'], ['tourney', '全国大会'], ['months', '月間1位'], ['cover', '週刊誌の表紙']]],
@@ -598,6 +598,8 @@
       reform: ['日付', '元ヴィラン', 'ヒーロー名', 'きっかけ', '', (l) => `${date(l)}<td>${Vv(l.v)}</td><td>${H(l.h)}</td><td>${l.by !== null ? H(l.by) : '―'}</td><td></td>`],
       kaiju: ['日付', '怪獣', '結果', '中心となったヒーロー', '', (l) => `${date(l)}<td>${Vv(l.v)}</td><td>${l.res === '撃破' ? '<span class="ok">撃破</span>' : '<span class="ng">撤退</span>'}</td><td>${H(l.h)}</td><td></td>`],
       org: ['日付', '組織', '', '突入を率いたヒーロー', '', (l) => `${date(l)}<td>${link('o', sim.orgs[l.o])}</td><td></td><td>${H(l.h)}</td><td></td>`],
+      comeback: ['日付', 'ヒーロー', '引退期間', '引退中の暮らし', '現在の順位', (l) => `${date(l)}<td>${H(l.h)}</td><td class="nu">${l.years}年</td><td>${esc(l.after || '―')}</td><td class="nu">${sim.heroes[l.h].rank ? sim.heroes[l.h].rank + '位' : '―'}</td>`],
+      after: ['日付', '元ヒーロー', '近況', '現役時代の最高順位', '', (l) => `${date(l)}<td>${H(l.h)}</td><td>${esc(l.after)}</td><td class="nu">${sim.heroes[l.h].bestRank ?? '―'}位</td><td></td>`],
       marry: ['日付', 'ヒーロー', 'お相手', '', '', (l) => `${date(l)}<td>${H(l.h)}</td><td>${H(l.h2)}</td><td></td><td></td>`],
       inherit: ['日付', '弟子', '師匠', '師匠の状態', '改名', (l) => `${date(l)}<td>${H(l.h)}</td><td>${H(l.m)}</td><td>${STATUS[sim.heroes[l.m].status] || '現役'}</td><td>${l.renamed ? '二代目を襲名' : '―'}</td>`],
       milestone: ['日付', 'ヒーロー', '節目', '', '', (l) => `${date(l)}<td>${H(l.h)}</td><td>${MS_LABEL[l.key.replace(/\d+$/, '')] || MS_LABEL[l.key] || ''}${l.key === 'top1' || l.key === 'cap1' ? '' : ' ' + l.num + (l.key.startsWith('career') || l.key.startsWith('streak') ? '年' : l.key.startsWith('cap') ? '人' : '件')}</td><td></td><td></td>`],
@@ -730,6 +732,78 @@
   }
   const stars = (t) => '★'.repeat(Math.min(5, t)) + '☆'.repeat(Math.max(0, 5 - t)) + (t > 5 ? '+' : '');
 
+  // 画面専用の乱数（シミュレーションの乱数は使わない）
+  function localRng(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    let st = h >>> 0;
+    return () => { st = (st + 0x6d2b79f5) >>> 0; let t = st; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+  // ファンの支持層とファンの声
+  function fanSection(h) {
+    const F = D.fans;
+    const tr = (list) => h.traits.filter((t) => list.includes(t)).length;
+    const age = typeof h.age === 'number' ? h.age : 40;
+    const sc = {
+      kids: 1 + tr(['子ども好き', '陽気', '熱血', '天然', 'ムードメーカー', '体育会系']) * 3 + (h.power.tier >= 4 ? 2 : 0) + (h.rec.kaiju ? 1 : 0),
+      young: 1 + tr(['SNS中毒', '目立ちたがり', 'ナルシスト', '恋多き', 'お調子者', 'クール']) * 3 + (age < 30 ? 3 : 0) + h.rec.media * 0.3,
+      adult: 1 + tr(['真面目', '苦労人', 'お人好し', '世話焼き', '面倒見がいい', '心配性']) * 3 + (age >= 30 && age < 50 ? 2 : 0),
+      senior: 1 + tr(['古風', '礼儀正しい', '職人気質', '義理堅い', '無口な職人', '頑固者']) * 3 + (age >= 50 ? 3 : 0) + h.career * 0.1,
+      net: 1 + tr(['中二病', 'オタク気質', '毒舌', '皮肉屋', '天然', '理屈っぽい']) * 3 + (h.power.el === 'odd' ? 2 : 0) + h.rec.scandals * 0.8,
+      local: 1 + (/観光課$/.test(h.agency) ? 6 : 0) + Math.min(h.career, 20) * 0.15 + (h.team !== null ? 1 : 0),
+    };
+    const total = Object.values(sc).reduce((a, b) => a + b, 0);
+    const order = Object.entries(sc).sort((a, b) => b[1] - a[1]);
+    const rnd = localRng(`${sim.seed}:${h.id}:${sim.year}`);
+    const pick = (a) => a[Math.floor(rnd() * a.length)];
+    const ctx = { name: h.name, nick: h.nickname || h.name, move: h.move || h.power.name, catch: h.catch || '', pref: h.pref.replace(/[都府県]$/, ''), city: h.city };
+    const voices = [];
+    for (const [k] of order.slice(0, 3)) voices.push(G.fill(pick(F[k].voices), ctx).replace('{pref}', ctx.pref));
+    const bars = order.map(([k, v]) => {
+      const label = k === 'local' ? `地元（${ctx.pref}）` : F[k].label;
+      const pct = Math.round((v / total) * 100);
+      return `<div class="meter blue"><span>${esc(label)}</span><i><b style="width:${Math.min(100, pct * 2)}%"></b></i><span>${pct}%</span></div>`;
+    }).join('');
+    const mood = h.status === 'dead' ? '今も献花が絶えない' : h.status === 'fallen' ? 'ファンの多くが離れていった' : h.fame > 600 ? '国民的な人気' : h.fame > 250 ? '全国区の人気' : h.fame > 80 ? '地元を中心に人気' : 'これからに期待';
+    return `<p class="mapnote">人気の度合い：<b>${mood}</b>（人気 ${num(h.fame)}）</p><h5>支持層</h5>${bars}<h5>ファンの声</h5><ul class="voices">${voices.map((v) => `<li>${esc(v)}</li>`).join('')}</ul>`;
+  }
+  // 人生年表
+  const LIFE_LABEL = { kaiju: '怪獣', org: '組織壊滅', agency: '事務所', death: '殉職', retire: '引退', scandal: 'スキャンダル', hof: '殿堂入り', inherit: '師匠の技を継承', marry: '結婚', tourney: '全国大会', saga: '宿敵との因縁', boss: '審判の日', fallen: '闇堕ち', reform: '改心', comeback: '現役復帰', after: '引退後の消息', legacy: '二世デビュー', milestone: '節目' };
+  function lifeTimeline(h) {
+    const ev = [];
+    ev.push({ y: h.debutYear, d: -1, t: 'デビュー', s: `${esc(h.agency)}からヒーローとして活動を始める` });
+    for (const l of sim.log) {
+      const me = l.h === h.id, other = l.h2 === h.id || l.parent === h.id || l.m === h.id || l.runner === h.id;
+      if (!me && !other) continue;
+      let t = LIFE_LABEL[l.t] || l.t, s2 = '';
+      switch (l.t) {
+        case 'milestone': t = '節目'; if (!['cap1', 'top1'].includes(l.key) && !/(cap50|cap100|cap200|cases500|cases1000|rescues100|rescues200|career20|career30|streak10|streak15|streak20)/.test(l.key)) continue;
+          s2 = l.key === 'cap1' ? '初めてヴィランを検挙' : l.key === 'top1' ? 'ランキングで初めて1位に' : `${MS_LABEL[l.key.replace(/\d+$/, '')] || ''} ${l.num}`; break;
+        case 'scandal': s2 = `${'●'.repeat(l.sev)}${'○'.repeat(3 - l.sev)} ${ACT[l.act] || ''}`; break;
+        case 'marry': s2 = `${link('h', sim.heroes[me ? l.h2 : l.h])}と結婚`; break;
+        case 'tourney': s2 = me ? '優勝' : `準優勝（優勝は${link('h', sim.heroes[l.h])}）`; break;
+        case 'saga': s2 = `${link('v', sim.villains[l.v])}との因縁、${l.res}（${l.bouts}戦${l.w}勝${l.l}敗）`; break;
+        case 'boss': s2 = `${link('v', sim.villains[l.v])}との最終決戦（${l.res}）`; break;
+        case 'inherit': s2 = me ? `師匠${link('h', sim.heroes[l.m])}の技を受け継ぐ` : `弟子の${link('h', sim.heroes[l.h])}が技を受け継ぐ`; t = me ? t : '弟子が継承'; break;
+        case 'legacy': s2 = me ? `親は${link('h', sim.heroes[l.parent])}` : `子の${link('h', sim.heroes[l.h])}がデビュー`; t = me ? t : '子がデビュー'; break;
+        case 'retire': s2 = `${esc(l.reason)}（活動${l.career}年）`; break;
+        case 'death': s2 = l.v !== null ? `${link('v', sim.villains[l.v])}との戦いで` : '救助活動中に'; break;
+        case 'fallen': s2 = `${link('v', sim.villains[l.v])}として活動を始める`; break;
+        case 'comeback': s2 = `${l.years}年ぶりに現役へ`; break;
+        case 'after': s2 = esc(l.after); break;
+        case 'hof': s2 = `最高${l.best}位・活動${l.career}年`; break;
+        case 'kaiju': if (l.res !== '撃破') continue; s2 = `怪獣${link('v', sim.villains[l.v])}を撃破`; break;
+        case 'org': s2 = `${link('o', sim.orgs[l.o])}を壊滅させる`; break;
+        case 'agency': if (!me) continue; s2 = l.kind === '独立' ? `独立して「${esc(l.a)}」を設立` : l.kind === '引き抜き' ? `「${esc(l.a)}」に移籍` : esc(l.kind); break;
+        default: continue;
+      }
+      ev.push({ y: l.y, d: l.d, t, s: s2, k: l.t });
+    }
+    for (const t of h.titles) if (!/^宿敵/.test(t.title)) ev.push({ y: t.y, d: 364.5, t: '受賞', s: esc(t.title), k: 'award' });
+    ev.sort((a, b) => a.y - b.y || a.d - b.d);
+    return `<ol class="life">${ev.map((e) => `<li class="lk-${e.k || 'debut'}"><span class="ly">${e.y}</span><b>${esc(e.t)}</b><span>${e.s}</span></li>`).join('')}</ol>`;
+  }
+
   function yen(man) { return man >= 10000 ? `約${(man / 10000).toFixed(1)}億円` : `約${num(Math.round(man / 10) * 10)}万円`; }
   function showHero(h) {
     const rel = [];
@@ -762,6 +836,7 @@
           ['誕生日', h.birthday ? `${h.birthday[0]}月${h.birthday[1]}日` : ''], ['血液型', h.blood ? h.blood + '型' : ''], ['身長・体重', h.height ? `${h.height}cm・${h.weight}kg` : ''],
           ['出身', esc(h.pref + h.city)], ['出身校', esc(h.school || '')], ['前職', esc(h.job)], ['家族', esc(h.family || '')],
           ['所属', esc(h.agency)], ['スポンサー', esc(h.sponsor || '')], ['活動', `${h.career}年目（${h.debutYear}年デビュー）`], ['最高順位', h.bestRank ? h.bestRank + '位' : '―'], ['推定年収', income],
+          ['引退後', h.status === 'retired' && h.after ? esc(h.after) : ''], ['現役復帰', h.comebacks ? h.comebacks + '回' : ''],
         ])}</section>
         <section class="pcard"><h4>能力</h4>
           <div class="power"><b>${esc(h.power.name)}</b><span class="stars" title="能力の格">${stars(tier)}</span><p>${esc(h.power.desc)}（${esc(D.elemLabel[h.power.el] || '')}系）</p></div>
@@ -779,7 +854,9 @@
           <h5>今年の順位推移</h5>${spark(h.rankHist)}
           <h5>年度別の最終順位</h5>${yrs.length ? `<ol class="yrs">${yrs.slice().reverse().map(([y, rk]) => `<li><span>${y}</span><b>${rk}位</b></li>`).join('')}</ol>` : '<p class="mapnote">年末に記録されます。</p>'}
         </section>
-        ${rel.length ? `<section class="pcard wide"><h4>人間関係</h4>${dl(rel)}</section>` : ''}
+        <section class="pcard"><h4>ファンの声と支持層</h4>${fanSection(h)}</section>
+        ${rel.length ? `<section class="pcard"><h4>人間関係</h4>${dl(rel)}</section>` : ''}
+        <section class="pcard wide"><h4>人生年表</h4>${lifeTimeline(h)}</section>
       </div>
       <h4 class="sect">活動記録</h4>${histList(h)}`);
   }

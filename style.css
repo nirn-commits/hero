@@ -498,3 +498,23 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 h4.sect { font-size: 0.82rem; letter-spacing: 0.12em; color: var(--ink); margin: 16px 0 6px; }
 .hist li { grid-template-columns: 7.5em minmax(0, 1fr); }
 .hist li:nth-child(even) { background: var(--zebra); }
+
+/* ===== 第5版：人生年表・ファンの声 ===== */
+.voices { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.86rem; }
+.voices li { background: var(--panel); border-radius: 6px; padding: 6px 10px; position: relative; }
+.voices li::before { content: "“"; font-family: var(--f-display); color: var(--k-rank); margin-right: 4px; }
+.pcard .meter span:first-child { white-space: nowrap; }
+.pcard .meter { grid-template-columns: 7.5em minmax(0, 1fr) 2.8em; }
+.life { list-style: none; margin: 0; padding: 0 0 0 4px; position: relative; display: flex; flex-direction: column; gap: 2px; }
+.life::before { content: ""; position: absolute; left: 3.6em; top: 6px; bottom: 6px; width: 2px; background: var(--line); }
+.life li { display: grid; grid-template-columns: 3em 8.5em minmax(0, 1fr); gap: 4px 14px; align-items: baseline; font-size: 0.86rem; padding: 3px 0; position: relative; }
+.life li::before { content: ""; position: absolute; left: calc(3.6em - 4px); top: 0.75em; width: 10px; height: 10px; border-radius: 50%; background: var(--panel); border: 2px solid var(--mute); }
+.life .ly { font-family: var(--f-num); font-size: 1rem; color: var(--mute); text-align: right; padding-right: 0.4em; }
+.life b { padding-left: 0.6em; font-size: 0.82rem; }
+.life .lk-award::before, .life .lk-hof::before, .life .lk-tourney::before { border-color: var(--gold); background: var(--gold-bg); }
+.life .lk-death::before, .life .lk-fallen::before, .life .lk-scandal::before { border-color: var(--alert); }
+.life .lk-comeback::before, .life .lk-marry::before { border-color: var(--good); }
+.life .lk-death b, .life .lk-fallen b { color: var(--alert); }
+.life .lk-award b, .life .lk-hof b { color: var(--gold); }
+.life .lk-comeback b { color: var(--good); }
+@media (max-width: 520px) { .life li { grid-template-columns: 3em minmax(0, 1fr); } .life li > span:last-child { grid-column: 2; padding-left: 0.6em; } }

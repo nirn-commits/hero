@@ -84,11 +84,11 @@
       const n = { id: this.news.length, y: this.year, d: this.day, cat, imp, text: fill(text) };
       this.news.push(n);
       this.today.push(n);
-      const hs = (refs.h || []).filter(Boolean);
+      const hs = [...new Set((refs.h || []).filter(Boolean))];
       if (hs.length) n.h = hs.map((h) => h.id);
       const bz = [0, 1, 3, 8][imp] * (cat === 'scandal' ? 1.5 : 1);
       for (const h of hs) { h.hist.push(n.id); h.buzz = (h.buzz || 0) + bz; }
-      for (const v of refs.v || []) if (v) v.hist.push(n.id);
+      for (const v of new Set(refs.v || [])) if (v) v.hist.push(n.id);
       if (refs.o) refs.o.hist.push(n.id);
       return n;
     }
@@ -136,6 +136,7 @@
       this.upkeep();
       this.calendar(m, dd);
       this.storyDaily(m, dd);
+      this.bondDaily();
       this.incidents(m);
       this.heroEvents();
       this.villainEvents();
@@ -600,6 +601,7 @@
       const text = fill(R.pick(D.retireLines), { h: H(h), years: Math.max(1, h.career) }) + this.sagaOnRetire(h) + this.tribute(h, 'retire');
       this.post('life', this.isTop(h, 50) || h.career > 20 ? 3 : 2, text, { h: [h] });
       this.logRec('retire', { h: h.id, reason: '引退', career: h.career, age: h.age, best: h.bestRank });
+      this.onRetireBond(h);
       this.flushSaga();
       this.afterCareer(h);
       for (const id of h.apprentices) { const a = this.heroes[id]; if (a.mentor === h.id) a.mentor = null; }
