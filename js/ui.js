@@ -114,7 +114,7 @@
     el.className = 'toast';
     el.innerHTML = `<span class="toast-tag">★ 推しの動き</span><p>${html}</p>`;
     box.prepend(el);
-    while (box.children.length > 3) box.lastElementChild.remove();
+    while (box.children.length > (isWide() ? 3 : 1)) box.lastElementChild.remove();
     setTimeout(() => el.remove(), 7000);
   }
 
@@ -282,6 +282,7 @@
     const p = currentPane();
     if (!p) return;
     if (p === 'rank') return renderRank();
+    if (p === 'fav' && (force || ticks % 3 === 0)) return renderFav();
     if (p === 'dash' && (force || ticks % 3 === 0)) return renderDash();
     if (!force && ticks % 5 !== 0) return;
     if (p === 'roster') renderRoster();
@@ -531,6 +532,36 @@
       <div class="podium">${podium}</div>
       <table class="rk-table"><thead><tr><th>順位</th><th>先週比</th><th>ヒーロー</th><th>ポイント</th></tr></thead><tbody>${list.slice(3).map((h) => heroRow(h, h.rank, num(score(h)), (score(h) / top) * 100)).join('')}</tbody></table>
       ${ui.rankLimit < live ? `<button type="button" class="more" data-more="rank">さらに50名を表示</button>` : ''}`;
+  }
+
+  // ---------- 推し ----------
+  function renderFav() {
+    const list = [...ui.favs].map((id) => sim.heroes[id]).filter(Boolean)
+      .sort((a, b) => (a.rank ?? 1e6) - (b.rank ?? 1e6));
+    const pane = $('#pane-fav');
+    if (!list.length) {
+      pane.innerHTML = `<h2>推しヒーロー</h2><div class="fav-empty"><p><b>まだ推しが登録されていません。</b></p><p>ランキングや名鑑、ニュースに出てくる名前の横の☆を押すと、ここに推しのヒーローが並びます。順位の動き、今年の成績、最近のニュースをまとめて追いかけられます。</p><button type="button" class="btn" data-goto="rank">ランキングから選ぶ</button></div>`;
+      return;
+    }
+    const st = (h) => h.status === 'active' ? '<span class="st ok-st">活動中</span>' : statusChip(h);
+    const cards = list.map((h) => {
+      const news = h.hist.slice().reverse().map((id) => sim.news[id]).filter(Boolean).slice(0, 3);
+      const y = h.yrec;
+      return `<article class="favcard">
+        <header>${emblem(h, true)}<div class="fc-title"><div>${link('h', h)}${favBtn(h)}</div><small>${h.epithet ? '「' + esc(h.epithet) + '」・' : ''}${esc(h.power.name)}・${esc(h.pref)}</small></div>
+          <div class="fc-rank">${h.rank ? `<b>${h.rank}</b><small>位</small><span>${moveHTML(h)}</span>` : ''}</div></header>
+        <div class="fc-stats"><div><b>${h.bestRank ?? '―'}</b><span>最高位</span></div><div><b>${y.cases}</b><span>出動</span></div><div><b>${y.captures}</b><span>検挙</span></div><div><b>${y.rescues}</b><span>救助</span></div><div><b>${num(h.fame)}</b><span>人気</span></div></div><p class="fc-note">出動・検挙・救助は${sim.year}年の数字</p>
+        ${h.rank ? spark(h.rankHist.concat([[lastDay(), h.rank]])) : ''}
+        <div class="fc-status">${st(h)}${h.titles.length ? `<span class="st gold">受賞${h.titles.length}回</span>` : ''}${h.team !== null ? `<span class="st">${esc(sim.teams[h.team].name)}</span>` : ''}${h.nemesis !== null ? `<span class="st bad">宿敵 ${esc(sim.villains[h.nemesis].name)}</span>` : ''}</div>
+        <ul class="fc-news">${news.map((n) => `<li><span>${G.fmtDate(n.y, n.d)}</span><div>${rich(n.text)}</div></li>`).join('') || '<li><div class="mapnote">まだニュースはありません。</div></li>'}</ul>
+      </article>`;
+    }).join('');
+    const feed = [];
+    for (let i = sim.news.length - 1; i >= 0 && feed.length < 30; i--) { const n = sim.news[i]; if (n && isFavNews(n)) feed.push(n); }
+    pane.innerHTML = `<h2>推しヒーロー<small>${list.length}名・順位順</small></h2>
+      <div class="favgrid">${cards}</div>
+      <div class="sec"><h2>推しの最新ニュース<small>新しい順に30件</small></h2>
+      ${feed.length ? `<ul class="hist">${feed.map((n) => `<li><span>${G.fmtDate(n.y, n.d)}</span><div>${rich(n.text)}</div></li>`).join('')}</ul>` : '<p class="empty">まだニュースはありません。</p>'}</div>`;
   }
 
   // ---------- 記録 ----------
@@ -956,6 +987,7 @@
         saveFavs();
         document.querySelectorAll(`[data-fav="${id}"]`).forEach((b) => { const on = ui.favs.has(id); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '★' : '☆'; });
         if (currentPane() === 'dash') renderDash();
+        if (currentPane() === 'fav') renderFav();
         return;
       }
       const fo = e.target.closest('[data-favonly]');

@@ -518,3 +518,34 @@ h4.sect { font-size: 0.82rem; letter-spacing: 0.12em; color: var(--ink); margin:
 .life .lk-award b, .life .lk-hof b { color: var(--gold); }
 .life .lk-comeback b { color: var(--good); }
 @media (max-width: 520px) { .life li { grid-template-columns: 3em minmax(0, 1fr); } .life li > span:last-child { grid-column: 2; padding-left: 0.6em; } }
+
+/* ===== 推しページ ===== */
+.favgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.favcard { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--k-fav); border-radius: 8px; padding: 12px 14px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.favcard header { display: flex; gap: 10px; align-items: center; }
+.fc-title { min-width: 0; flex: 1; }
+.fc-title .nm { font-size: 1.05rem; }
+.fc-title small { display: block; color: var(--mute); font-size: 0.78rem; line-height: 1.4; }
+.fc-rank { text-align: right; flex: none; line-height: 1; }
+.fc-rank b { font-family: var(--f-num); font-size: 2.2rem; font-weight: 400; }
+.fc-rank small { font-size: 0.75rem; margin-left: 2px; }
+.fc-rank span { display: block; font-size: 0.75rem; margin-top: 4px; }
+.fc-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+.fc-stats div { background: var(--bg); border-radius: 6px; padding: 4px 6px; text-align: center; }
+.fc-stats b { display: block; font-family: var(--f-num); font-size: 1.25rem; font-weight: 400; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.fc-stats span { font-size: 0.66rem; color: var(--mute); }
+.fc-status { display: flex; flex-wrap: wrap; gap: 4px; }
+.fc-status .st { margin-left: 0; }
+.st.ok-st { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+.fc-news { list-style: none; margin: 0; padding: 0; font-size: 0.8rem; display: flex; flex-direction: column; gap: 4px; border-top: 1px solid var(--line); padding-top: 6px; }
+.fc-news li { display: grid; grid-template-columns: 6.6em minmax(0, 1fr); gap: 6px; }
+.fc-news li > span { color: var(--mute); font-size: 0.72rem; }
+.fav-empty { background: var(--panel); border: 1px dashed var(--line); border-radius: 8px; padding: 16px; max-width: 60ch; }
+.fav-empty p { margin: 0 0 10px; }
+#tab-fav { color: var(--k-fav); }
+#tab-fav[aria-selected="true"] { border-bottom-color: var(--k-fav); }
+.favgrid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); }
+.fc-note { margin: -4px 0 0; font-size: 0.7rem; color: var(--mute); text-align: right; }
+.toast p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+@media (max-width: 899px) { .toast { font-size: 0.78rem; padding: 6px 10px; } .toast p { -webkit-line-clamp: 2; } }
+.favcard .spark { max-height: 110px; }
