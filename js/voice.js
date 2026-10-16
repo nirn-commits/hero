@@ -11,53 +11,57 @@
     const age = typeof h.age === 'number' ? h.age : 30;
     const g = h.gender === '男' ? 'M' : h.gender === '女' ? 'F' : 'N';
     const pw = h.power ? h.power.name : '';
+    // ほとんどは普通の話し方。方言はほどほど、くせの強い口調は条件がそろった人だけ
+    const strong = (cond, wt) => (cond ? wt : 0);
     const w = {
-      polite: 3 + (has(h, ['真面目', '礼儀正しい', '冷静沈着', '完璧主義', '心配性']) ? 6 : 0) + (age > 35 ? 1 : 0),
-      casual: 4,
-      rough: 0.6 + (has(h, ['短気', '体育会系', '負けず嫌い', '頑固者', '毒舌']) ? 5 : 0) + (/暴走族|ヤンキー|ヴィラン/.test(h.job + h.quirk) ? 4 : 0),
-      kansai: h.region === '近畿' ? 7 : 0.2,
-      hakata: h.region === '九州沖縄' ? 4 : 0.05,
-      tohoku: h.region === '東北' ? 4 : 0.05,
-      samurai: 0.3 + (has(h, ['古風', '義理堅い']) ? 5 : 0) + (/剣術|忍術|陰陽|弓術|刀/.test(pw) ? 5 : 0),
-      ojou: g === 'F' ? 0.4 + (has(h, ['ナルシスト', '自信家']) ? 3 : 0) + (pw === '大富豪' ? 5 : 0) : g === 'M' && pw === '大富豪' ? 2 : 0,
-      gyaru: age < 28 ? 0.4 + (has(h, ['SNS中毒', 'お調子者', '陽気', '目立ちたがり']) ? 3 : 0) : 0,
-      elder: age >= 62 ? 8 : age >= 55 ? 3 : age >= 48 ? 0.5 : 0,
-      chuuni: 0.2 + (has(h, ['中二病']) ? 12 : 0) + (h.power && (h.power.el === 'dark' || h.power.el === 'mind') ? 0.6 : 0),
-      cool: 0.5 + (has(h, ['寡黙', 'クール', '一匹狼', '無口な職人', 'ドライ', 'ミステリアス']) ? 6 : 0),
-      cheerful: (age < 25 ? 1 : 0.2) + (has(h, ['陽気', '天然', 'ムードメーカー', '泣き虫', 'のんびり屋']) ? 4 : 0),
-      robot: /サイボーグ|AI|ロボ|機/.test(pw) ? 3 : 0.03,
-      hiroshima: ['広島県', '山口県', '岡山県'].includes(h.pref) ? 5 : 0.03,
-      nagoya: ['愛知県', '岐阜県'].includes(h.pref) ? 4 : 0.03,
-      okinawa: h.pref === '沖縄県' ? 8 : 0.02,
-      kyoto: h.pref === '京都府' ? 6 : 0.02,
-      tosa: h.pref === '高知県' ? 8 : 0.02,
-      edo: h.pref === '東京都' ? 1.2 + (has(h, ['短気', '情に厚い', '義理堅い']) ? 3 : 0) : 0.05,
-      otaku: 0.1 + (has(h, ['オタク気質']) ? 8 : 0),
-      idol: 0.1 + (/アイドル|声優|モデル|配信/.test(h.job) ? 5 : 0) + (has(h, ['目立ちたがり', 'ナルシスト']) && age < 30 ? 1.5 : 0),
-      neko: 0.05 + (/猫|ネコ/.test(pw) ? 10 : 0) + (h.power && h.power.el === 'beast' && has(h, ['天然', 'のんびり屋']) ? 2 : 0),
-      kodomo: age < 15 ? 8 : age < 17 ? 1 : 0,
-      hakase: 0.1 + (/研究者|大学教授|医師|外科医/.test(h.job) ? 4 : 0) + (has(h, ['理屈っぽい', '完璧主義']) ? 2 : 0) + (h.stats && h.stats.int > 85 ? 1 : 0),
-      oneesan: (age >= 26 ? 0.3 : 0) + (has(h, ['世話焼き', '面倒見がいい', '姐御']) && age >= 26 ? 3 : 0),
-      ninja: 0.05 + (/忍術|影|透明|光学迷彩/.test(pw) ? 4 : 0),
-      chara: age < 35 ? 0.2 + (has(h, ['恋多き', 'お調子者', '人たらし']) ? 3 : 0) : 0,
-      butler: 0.1 + (has(h, ['礼儀正しい', '完璧主義']) && age >= 25 ? 1.5 : 0) + (/ホテルマン/.test(h.job) ? 4 : 0),
-      teacher: 0.1 + (/教師|塾講師|保育士|教授|先生/.test(h.job) ? 5 : 0),
-      monk: 0.05 + (/住職|僧|神主|巫女/.test(h.job) ? 6 : 0),
-      taiikukai: 0.3 + (has(h, ['体育会系', '筋トレ馬鹿']) ? 5 : 0) + (/選手|力士|ボクサー|トレーナー/.test(h.job) ? 3 : 0),
+      polite: 6 + (has(h, ['真面目', '礼儀正しい', '冷静沈着', '完璧主義', '心配性']) ? 3 : 0) + (age > 35 ? 1 : 0),
+      casual: 7 + (age < 35 ? 1 : 0),
+      cool: 0.8 + (has(h, ['寡黙', 'クール', '一匹狼', '無口な職人', 'ドライ', 'ミステリアス']) ? 3 : 0),
+      cheerful: 0.4 + (has(h, ['陽気', '天然', 'ムードメーカー', '泣き虫']) ? 1.5 : 0),
+      rough: 0.3 + (has(h, ['短気', '体育会系', '負けず嫌い', '頑固者', '毒舌']) ? 1.5 : 0),
+      kansai: h.region === '近畿' ? 3.5 : 0,
+      hakata: h.region === '九州沖縄' && h.pref !== '沖縄県' ? 1.2 : 0,
+      tohoku: h.region === '東北' ? 1 : 0,
+      hiroshima: ['広島県', '山口県', '岡山県'].includes(h.pref) ? 1.2 : 0,
+      nagoya: ['愛知県', '岐阜県'].includes(h.pref) ? 0.8 : 0,
+      kyoto: h.pref === '京都府' ? 1 : 0,
+      tosa: h.pref === '高知県' ? 1.2 : 0,
+      okinawa: h.pref === '沖縄県' ? 1.5 : 0,
+      taiikukai: strong(has(h, ['体育会系', '筋トレ馬鹿']) || /選手|力士|ボクサー/.test(h.job), 0.8),
+      elder: age >= 68 ? 1.5 : 0,
+      kodomo: age < 15 ? 2 : 0,
+      samurai: strong(has(h, ['古風']) && /剣術|忍術|弓術|陰陽/.test(pw), 1),
+      chuuni: strong(has(h, ['中二病']), 1.5),
+      otaku: strong(has(h, ['オタク気質']), 0.5),
+      teacher: strong(/教師|塾講師|保育士/.test(h.job), 0.5),
+      monk: strong(/住職|僧/.test(h.job), 0.6),
+      hakase: strong(/研究者|大学教授/.test(h.job) && has(h, ['理屈っぽい', '完璧主義']), 0.6),
+      edo: strong(h.pref === '東京都' && has(h, ['短気', '情に厚い']) && age > 45, 0.4),
+      oneesan: strong(has(h, ['世話焼き', '面倒見がいい']) && age >= 30, 0.2),
+      ninja: strong(/忍術/.test(pw), 0.8),
+      robot: strong(/サイボーグ|AI相棒/.test(pw), 0.4),
+      ojou: strong(pw === '大富豪' && g === 'F', 0.8),
+      butler: strong(/ホテルマン/.test(h.job), 0.4),
+      idol: strong(/地下アイドル/.test(h.job), 0.6),
+      gyaru: strong(age < 22 && has(h, ['SNS中毒', 'お調子者']), 0.3),
+      chara: strong(age < 30 && has(h, ['恋多き', 'お調子者']), 0.25),
+      neko: strong(pw === '猫化', 1),
     };
     h.tone = R.wpick(Object.keys(w), (k) => w[k]);
     const t = D.tones[h.tone];
     h.fp = R.pick(t.fp[g] || t.fp.N);
   }
   function assignVillainVoice(v) {
-    const ks = Object.keys(D.vtones);
-    v.tone = R.pick(ks);
+    v.tone = R.wpick(Object.keys(D.vtones), (k) => ({ villain_polite: 3, villain_rough: 4, villain_cold: 4, villain_laugh: 0.8, villain_mad: 0.5 })[k] || 1);
     v.fp = R.pick(D.vtones[v.tone].fp);
   }
 
   P.ensureVoice = function () {
-    for (const h of this.heroes) { if (!h.tone) assignVoice(h); if (!h.quotes) h.quotes = []; }
-    for (const v of this.villains) if (v.kind === 'villain' && !v.tone) assignVillainVoice(v);
+    // 口調の割り振りを改めた版（v2）より前の世界は、全員を割り振り直す
+    const redo = this.voiceVer !== 2;
+    for (const h of this.heroes) { if (!h.tone || redo) assignVoice(h); if (!h.quotes) h.quotes = []; }
+    for (const v of this.villains) if (v.kind === 'villain' && (!v.tone || redo)) assignVillainVoice(v);
+    this.voiceVer = 2;
   };
 
   // ヒーローが場面に合った台詞を言う（「」なし）。語録に残す
