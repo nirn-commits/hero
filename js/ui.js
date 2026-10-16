@@ -4,7 +4,7 @@
   const $ = (s) => document.querySelector(s);
   const D = G.D;
   const SPEEDS = [0, 1500, 600, 150, 20];
-  const CAT = { case: '事件', villain: 'ヴィラン', big: '大事件', scandal: 'スキャンダル', media: '芸能', life: '人間模様', rank: 'ランキング', world: '社会' };
+  const CAT = { case: '事件', villain: 'ヴィラン', big: '大事件', scandal: 'スキャンダル', media: '芸能', life: '人間模様', rank: 'ランキング', milestone: '節目', world: '社会' };
   const STATUS = { active: '', off: '', retired: '引退', dead: '殉職', fallen: '闇堕ち' };
   const VSTATUS = { free: '逃亡中', captured: '収監中', dead: '撃破', retreated: '撤退', reformed: '改心' };
   const STAT_LABEL = [['pow', 'パワー'], ['tec', '技術'], ['spd', '機動力'], ['int', '知性'], ['cha', '人気'], ['men', '精神力'], ['mor', '正義感']];
@@ -14,10 +14,14 @@
     dark: ['闇', 268], metal: ['鋼', 222], beast: ['獣', 24], plant: ['樹', 112], mind: ['念', 305], time: ['刻', 240], space: ['宙', 256],
     body: ['体', 0], tech: ['機', 186], sound: ['音', 330], poison: ['毒', 285], luck: ['運', 70], gravity: ['重', 230], life: ['命', 345], odd: ['奇', 168],
   };
-  const REC_TYPES = [
-    ['death', '殉職'], ['retire', '引退'], ['scandal', 'スキャンダル'], ['hof', '殿堂入り'], ['legacy', '二世'], ['fallen', '闇堕ち'],
-    ['reform', '改心'], ['kaiju', '怪獣'], ['org', '組織壊滅'], ['marry', '結婚'], ['awards', '歴代表彰'], ['months', '月間1位'],
+  const REC_GROUPS = [
+    ['ヒーロー', [['death', '殉職'], ['retire', '引退'], ['scandal', 'スキャンダル'], ['hof', '殿堂入り'], ['legacy', '二世'], ['inherit', '継承'], ['milestone', '節目']]],
+    ['物語', [['saga', '宿敵の決着'], ['boss', '黒幕'], ['fallen', '闇堕ち'], ['reform', '改心'], ['kaiju', '怪獣'], ['org', '組織壊滅']]],
+    ['社会', [['era', '時代'], ['policy', '世論・制度'], ['agency', '事務所'], ['marry', '結婚']]],
+    ['年表', [['chronicle', '年代記'], ['awards', '歴代表彰'], ['tourney', '全国大会'], ['months', '月間1位'], ['cover', '週刊誌の表紙']]],
   ];
+  const REC_TYPES = REC_GROUPS.flatMap((g) => g[1]);
+  const MS_LABEL = { cap1: '初検挙', cap: '検挙', cases: '出動', rescues: '救助', top1: '初の1位', career: '活動年数', streak: '連続トップ100' };
   const ACT = { apology: '謝罪', deny: '否定', twist: '好感度上昇', suspend: '活動停止', arrest: '逮捕・免許はく奪' };
   const MAX_DAYS = 90;
 
@@ -27,6 +31,7 @@
   let ticks = 0;
   let countdown = null;
   const ui = load({ speed: 2, tab: 'dash', cats: Object.keys(CAT), autoYear: true, recType: 'death', mapMetric: 'inc' });
+  ui.favs = new Set(); ui.favOnly = false;
   ui.rankLimit = 50; ui.rosterLimit = 60; ui.vLimit = 60; ui.recLimit = 80; ui.recYear = 'all'; ui.pref = null;
 
   function load(def) {
@@ -95,11 +100,30 @@
   const lastDay = () => (sim.ended ? sim.day : Math.max(0, sim.day - 1));
   const shortPref = (p) => (p === '北海道' ? '北海道' : p.replace(/[都府県]$/, ''));
 
+  // ---------- 推し ----------
+  function loadFavs() {
+    ui.favs = new Set();
+    try { const a = JSON.parse(localStorage.getItem('hero-favs-' + sim.seed) || '[]'); for (const id of a) ui.favs.add(id); } catch (e) { /* 無視 */ }
+  }
+  function saveFavs() { try { localStorage.setItem('hero-favs-' + sim.seed, JSON.stringify([...ui.favs])); } catch (e) { /* 無視 */ } }
+  const favBtn = (h) => `<button type="button" class="fav-btn" data-fav="${h.id}" aria-pressed="${ui.favs.has(h.id)}" aria-label="${esc(h.name)}を推しに${ui.favs.has(h.id) ? '登録済み' : '登録'}" title="推しに登録">${ui.favs.has(h.id) ? '★' : '☆'}</button>`;
+  const isFavNews = (n) => n.h && n.h.some((id) => ui.favs.has(id));
+  function toast(html) {
+    const box = $('#toasts');
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.innerHTML = `<span class="toast-tag">★ 推しの動き</span><p>${html}</p>`;
+    box.prepend(el);
+    while (box.children.length > 3) box.lastElementChild.remove();
+    setTimeout(() => el.remove(), 7000);
+  }
+
   // ---------- 進行 ----------
   function newWorld(seed) {
     stop();
     cancelCountdown();
     sim = new G.Sim(seed || randomSeed());
+    loadFavs();
     $('#seedLabel').textContent = sim.seed;
     $('#feed').innerHTML = '';
     setFlash('新しい世界が生まれました。登録ヒーロー' + sim.heroes.length + '名、ヴィラン組織' + sim.orgs.filter((o) => o.status === 'active').length + 'つ。一年が始まります。');
@@ -110,6 +134,7 @@
   }
   function resumeWorld(s) {
     sim = s;
+    loadFavs();
     $('#seedLabel').textContent = sim.seed;
     rebuildFeed();
     setFlash(`前回の続き（${G.fmtDate(sim.year, lastDay())}）から再開しました。`);
@@ -186,7 +211,8 @@
 
   // ---------- ヘッダー ----------
   function renderHeader() {
-    $('#dateLabel').textContent = `${sim.year - (sim.awards.length ? sim.awards[0].year : sim.year) + 1}年目　` + G.fmtDate(sim.year, lastDay(), true);
+    $('#dateLabel').textContent = `${sim.year - sim.startYear + 1}年目　` + G.fmtDate(sim.year, lastDay(), true);
+    $('#eraLabel').textContent = sim.eraDef().name + (sim.boss && sim.boss.year === sim.year ? '・黒幕出現中' : '');
     const total = G.daysInYear(sim.year);
     $('#yearFill').style.width = ((sim.ended ? total : sim.day) / total) * 100 + '%';
   }
@@ -203,20 +229,22 @@
 
   // ---------- ニュース ----------
   function renderFilters() {
-    $('#filters').innerHTML = Object.entries(CAT).map(([k, v]) => `<button type="button" class="chip k-${k}" data-cat="${k}" aria-pressed="${ui.cats.includes(k)}">${v}</button>`).join('');
+    $('#filters').innerHTML = `<button type="button" class="chip k-fav" data-favonly="1" aria-pressed="${ui.favOnly}">★ 推しのみ</button>` + Object.entries(CAT).map(([k, v]) => `<button type="button" class="chip k-${k}" data-cat="${k}" aria-pressed="${ui.cats.includes(k)}">${v}</button>`).join('');
   }
-  const visible = (n) => ui.cats.includes(n.cat);
+  const visible = (n) => ui.cats.includes(n.cat) && (!ui.favOnly || isFavNews(n));
   function dayHTML(day, items) {
     const vis = items.filter(visible);
     if (!vis.length) return '';
     return `<section class="day" data-day="${day}"><h3>${G.fmtDate(sim.year, day, true)}</h3><ol>${vis.map(itemHTML).join('')}</ol></section>`;
   }
   function itemHTML(n) {
-    return `<li class="it i${n.imp} c-${n.cat}"><span class="tag k-${n.cat}">${CAT[n.cat]}</span><p>${rich(n.text)}</p></li>`;
+    const fav = isFavNews(n);
+    return `<li class="it i${n.imp} c-${n.cat}${fav ? ' fav' : ''}"><span class="tag k-${n.cat}">${fav ? '★' : ''}${CAT[n.cat] || ''}</span><p>${rich(n.text)}</p></li>`;
   }
   function renderDay(day, items) {
     const top = items.filter((n) => n.imp === 3).pop();
     if (top) setFlash(rich(top.text), true);
+    if (ui.favs.size) for (const n of items) if (isFavNews(n) && (n.imp >= 2 || ['milestone', 'scandal', 'big', 'rank'].includes(n.cat))) toast(rich(n.text));
     const html = dayHTML(day, items);
     if (!html) return;
     const feed = $('#feed');
@@ -278,7 +306,7 @@
     return s;
   }
   function heroRow(h, rankCell, right, barPct) {
-    return `<tr><td class="rk">${rankCell}</td><td class="mv">${h.rank ? moveHTML(h) : ''}</td><td class="who"><div class="whoin">${emblem(h)}<div>${link('h', h)}${statusChip(h)}<small>${esc(h.power.name)}・${esc(h.pref)}・${esc(h.agency)}</small>${barPct !== undefined ? `<i class="bar"><b style="width:${barPct}%"></b></i>` : ''}</div></div></td><td class="sc">${right}</td></tr>`;
+    return `<tr><td class="rk">${rankCell}</td><td class="mv">${h.rank ? moveHTML(h) : ''}</td><td class="who"><div class="whoin">${emblem(h)}<div>${link('h', h)}${favBtn(h)}${statusChip(h)}<small>${esc(h.power.name)}・${esc(h.pref)}・${esc(h.agency)}</small>${barPct !== undefined ? `<i class="bar"><b style="width:${barPct}%"></b></i>` : ''}</div></div></td><td class="sc">${right}</td></tr>`;
   }
 
   // ---------- 概況 ----------
@@ -290,11 +318,19 @@
     const freeV = sim.villains.filter((v) => v.status === 'free' && v.kind === 'villain').length;
     const orgs = sim.orgs.filter((o) => o.status === 'active').length;
     const k = (v, l, cls) => `<div class="kpi${cls ? ' ' + cls : ''}"><b>${v}</b><span>${l}</span></div>`;
-    const events = sim.log.filter((l) => l.y === sim.year && ['death', 'hof', 'fallen', 'org', 'legacy', 'reform'].includes(l.t)).slice(-6).reverse();
+    const events = sim.log.filter((l) => l.y === sim.year && ['death', 'hof', 'fallen', 'org', 'legacy', 'reform', 'saga', 'boss', 'era', 'tourney', 'inherit', 'policy'].includes(l.t)).slice(-8).reverse();
+    const t = sim.curTourney();
     $('#pane-dash').innerHTML = `
       <h2>${sim.year}年の概況<small>${G.fmtDate(sim.year, lastDay())}時点</small></h2>
-      <div class="kpis">${k(num(inc), '事件')}${k(handled ? Math.round((solved / handled) * 100) + '%' : '–', '解決率')}${k(st.captures, 'ヴィラン検挙')}${k(st.scandals, 'スキャンダル', 'warn')}${k(st.deaths, '殉職', st.deaths ? 'bad' : '')}${k(sim.ranked.length, '現役ヒーロー')}${k(freeV, '逃亡中ヴィラン')}${k(orgs, '活動中の組織')}</div>
+      ${banners()}
+      <div class="kpis">${k(Math.round(sim.approval) + '%', 'ヒーロー支持率', sim.approval < 40 ? 'bad' : '')}${k(num(inc), '事件')}${k(handled ? Math.round((solved / handled) * 100) + '%' : '–', '解決率')}${k(st.captures, 'ヴィラン検挙')}${k(st.scandals, 'スキャンダル', 'warn')}${k(st.deaths, '殉職', st.deaths ? 'bad' : '')}${k(sim.ranked.length, '現役ヒーロー')}${k(freeV, '逃亡中ヴィラン')}${k(orgs, '活動中の組織')}</div>
       <div class="dash-grid">
+        <div class="duo">${coverCard()}${favPanel()}</div>
+        ${t ? `<figure class="fig"><figcaption><span>第${t.no}回 全国ヒーロー大会</span><span class="legend">${t.champ !== null ? '優勝 ' + link('h', sim.heroes[t.champ]) : '決勝は11月3日'}</span></figcaption>${bracket(t)}</figure>` : ''}
+        <figure class="fig">
+          <figcaption><span>ヒーロー支持率の推移（${sim.year}年）</span><span class="legend">38%を下回ると制度改革</span></figcaption>
+          ${approvalChart()}
+        </figure>
         <figure class="fig">
           <figcaption><span>地域別の状況</span>
             <span class="seg sm" role="group" aria-label="地図の指標">${[['inc', '事件数'], ['hero', 'ヒーロー数'], ['villain', 'ヴィラン']].map(([m, l]) => `<button type="button" data-map="${m}" aria-pressed="${ui.mapMetric === m}">${l}</button>`).join('')}</span></figcaption>
@@ -314,6 +350,67 @@
         </figure>
       </div>`;
   }
+  function banners() {
+    const e = sim.eraDef();
+    let html = `<div class="banner era"><span class="banner-tag">時代</span><div><b>${esc(e.name)}</b><small>${sim.era.from}年から・${esc(e.start)}</small></div></div>`;
+    const b = sim.boss;
+    if (b && b.year === sim.year) {
+      const v = sim.villains[b.v];
+      const left = Math.round((new Date(sim.year, 11, 20) - new Date(sim.year, 0, 1)) / 864e5) - lastDay();
+      const stage = left > 0 && lastDay() >= 40 ? `「審判の日」（12月20日）まであと${left}日` : left > 0 ? '正体不明の脅威がうごめいている' : '決戦は終わった';
+      html += `<div class="banner boss"><span class="banner-tag">黒幕</span><div><b>${lastDay() >= 40 || b.since !== sim.year ? link('v', v) : '？？？'}</b><small>${stage}${b.united.length ? '・傘下の組織 ' + b.united.map((id) => link('o', sim.orgs[id])).join('、') : ''}</small></div></div>`;
+    }
+    return html;
+  }
+  function coverCard() {
+    const c = sim.covers[sim.covers.length - 1];
+    if (!c) return '<div class="cover empty-cover"><div class="cover-mast">週刊ヒーロー</div><p class="mapnote">毎週月曜日に、その週いちばん話題になったヒーローが表紙を飾ります。</p></div>';
+    const h = sim.heroes[c.h];
+    return `<div class="cover"><div class="cover-mast">週刊ヒーロー<span>Vol.${c.vol}・${G.fmtDate(c.y, c.d)}号</span></div>
+      <div class="cover-body">${emblem(h, true)}<div><p class="cover-head">${esc(c.head)}</p><div>${link('h', h)}${favBtn(h)}</div>${c.sub ? `<small>ほか：${esc(c.sub)}</small>` : ''}</div></div></div>`;
+  }
+  function favPanel() {
+    const list = [...ui.favs].map((id) => sim.heroes[id]).filter(Boolean);
+    return `<div class="favpanel"><h3>★ 推しヒーロー</h3>${list.length ? `<ul class="list">${list.map((h) => `<li>${hlink(h)}${favBtn(h)}<span class="k">${h.rank ? h.rank + '位' : STATUS[h.status] || ''}</span>${statusChip(h)}</li>`).join('')}</ul>` : '<p class="mapnote">名前の横の☆を押すと推しに登録できます。推しが関わるニュースは目立つ色で流れ、大きな出来事があると画面の隅でお知らせします。</p>'}</div>`;
+  }
+  function approvalChart() {
+    const pts = sim.apHist.concat([[lastDay(), Math.round(sim.approval * 10) / 10]]);
+    const W = 420, Hh = 130, pl = 30, pr = 10, pt = 8, pb = 20;
+    const days = G.daysInYear(sim.year);
+    const x = (d) => pl + (d / days) * (W - pl - pr);
+    const y = (v) => pt + (1 - v / 100) * (Hh - pt - pb);
+    const grid = [0, 50, 100].map((v) => `<line class="gd" x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}"/><text class="ax" x="${pl - 6}" y="${y(v) + 3}" text-anchor="end">${v}%</text>`).join('');
+    const ref = `<line class="ref" x1="${pl}" x2="${W - pr}" y1="${y(38)}" y2="${y(38)}"/>`;
+    const months = [0, 3, 6, 9].map((m) => `<text class="ax" x="${x(Math.round((new Date(sim.year, m, 1) - new Date(sim.year, 0, 1)) / 864e5))}" y="${Hh - 5}">${m + 1}月</text>`).join('');
+    const line = pts.map(([d, v]) => `${x(d).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const last = pts[pts.length - 1];
+    const dots = pts.map(([d, v]) => `<circle class="hit" cx="${x(d).toFixed(1)}" cy="${y(v).toFixed(1)}" r="6"><title>${G.fmtDate(sim.year, d)}：${Math.round(v)}%</title></circle>`).join('');
+    return `<svg class="chart" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="今年のヒーロー支持率の推移">${grid}${ref}${months}<g class="s1"><polyline class="ln" points="${line}"/>${dots}<circle class="end" cx="${x(last[0])}" cy="${y(last[1])}" r="4"/><text class="lbl" x="${Math.min(x(last[0]) + 6, W - 34)}" y="${y(last[1]) - 7}">${Math.round(last[1])}%</text></g></svg>`;
+  }
+  function bracket(t) {
+    const names = ['1回戦', '準々決勝', '準決勝', '決勝'];
+    const slot = (id, win, lose) => {
+      if (id === undefined) return '<div class="slot tbd">未定</div>';
+      const h = sim.heroes[id];
+      return `<div class="slot${win ? ' win' : ''}${lose ? ' lose' : ''}"><span class="bseed">${t.seeds.indexOf(id) + 1}</span>${emblem(h)}${link('h', h)}</div>`;
+    };
+    let cols = '';
+    for (let r = 0; r < 4; r++) {
+      const ids = t.rounds[r] || [];
+      const nxt = t.rounds[r + 1];
+      const n = 16 >> r;
+      let ms = '';
+      for (let i = 0; i < n; i += 2) {
+        const a = ids[i], b = ids[i + 1], w = nxt ? nxt[i / 2] : undefined;
+        const res = t.results[r] ? t.results[r][i / 2] : null;
+        ms += `<div class="match"${res ? ` title="${esc(res.move)}"` : ''}>${slot(a, w !== undefined && w === a, w !== undefined && w !== a)}${slot(b, w !== undefined && w === b, w !== undefined && w !== b)}${res && res.upset ? '<span class="upset">番狂わせ</span>' : ''}</div>`;
+      }
+      cols += `<div class="bcol"><h5>${names[r]}</h5><div class="bms">${ms}</div></div>`;
+    }
+    const ch = t.champ !== null ? sim.heroes[t.champ] : null;
+    cols += `<div class="bcol champcol"><h5>優勝</h5><div class="bms">${ch ? `<div class="match champ-slot">${emblem(ch, true)}${link('h', ch)}</div>` : '<div class="match"><div class="slot tbd">未定</div></div>'}</div></div>`;
+    return `<div class="bracket-wrap"><div class="bracket">${cols}</div></div>`;
+  }
   function monthDay(l) { const d = G.dateOf(l.y, l.d); return `${d.getMonth() + 1}/${d.getDate()}`; }
   function logSummary(l) {
     const h = l.h !== undefined && l.h !== null ? sim.heroes[l.h] : null;
@@ -324,6 +421,12 @@
       case 'org': return `${link('o', sim.orgs[l.o])}が壊滅${h ? `（${link('h', h)}らの突入）` : ''}`;
       case 'legacy': return `${hlink(h)}がデビュー（親：${link('h', sim.heroes[l.parent])}）`;
       case 'reform': return `${link('v', sim.villains[l.v])}が改心し${hlink(h)}に`;
+      case 'saga': return `${hlink(h)}と${link('v', sim.villains[l.v])}の因縁${l.res === '決着' ? 'に決着' : l.res === '悲劇' ? 'が悲劇で幕' : 'は未決着のまま'}（${l.bouts}戦）`;
+      case 'boss': return `黒幕${link('v', sim.villains[l.v])}との決戦：${l.res === '撃破' ? `${hlink(h)}らが勝利` : l.res === '逃亡' ? '取り逃がす' : '敗北'}`;
+      case 'era': return `「${esc(l.name)}」が始まる`;
+      case 'tourney': return `全国大会で${hlink(h)}が優勝`;
+      case 'inherit': return `${hlink(h)}が師匠${link('h', sim.heroes[l.m])}の技を継承`;
+      case 'policy': return `${esc(l.kind)}（支持率${l.ap}%）`;
       default: return '';
     }
   }
@@ -423,7 +526,7 @@
     const list = sim.ranked.slice(0, ui.rankLimit);
     const live = sim.ranked.length;
     const top = list[0] ? score(list[0]) : 1;
-    const podium = list.slice(0, 3).map((h) => `<div class="pod p${h.rank}"><div class="pod-rk">${h.rank}<small>位</small></div>${emblem(h, true)}<div class="pod-name">${link('h', h)}</div><div class="pod-meta">${esc(h.power.name)}・${esc(shortPref(h.pref))}</div><div class="pod-sc">${num(score(h))}<span>${moveHTML(h)}</span></div>${statusChip(h)}</div>`).join('');
+    const podium = list.slice(0, 3).map((h) => `<div class="pod p${h.rank}"><div class="pod-rk">${h.rank}<small>位</small></div>${emblem(h, true)}<div class="pod-name">${link('h', h)}${favBtn(h)}</div><div class="pod-meta">${esc(h.power.name)}・${esc(shortPref(h.pref))}</div><div class="pod-sc">${num(score(h))}<span>${moveHTML(h)}</span></div>${statusChip(h)}</div>`).join('');
     $('#pane-rank').innerHTML = `<h2>ヒーローランキング<small>現役${live}名・矢印は先週比</small></h2>
       <div class="podium">${podium}</div>
       <table class="rk-table"><tbody>${list.slice(3).map((h) => heroRow(h, h.rank, num(score(h)), (score(h) / top) * 100)).join('')}</tbody></table>
@@ -442,9 +545,30 @@
     for (const l of sim.log) if (inYear(l.y)) counts[l.t] = (counts[l.t] || 0) + 1;
     counts.awards = sim.awards.filter((a) => inYear(a.year)).length;
     counts.months = sim.monthTop.filter((m) => inYear(m.y)).length;
-    $('#recTypes').innerHTML = REC_TYPES.map(([t, l]) => `<button type="button" data-rec="${t}" aria-pressed="${ui.recType === t}">${l}<b>${counts[t] || 0}</b></button>`).join('');
+    counts.tourney = sim.tourneys.filter((x) => inYear(x.y)).length;
+    counts.cover = sim.covers.filter((c) => inYear(c.y)).length;
+    counts.chronicle = sim.chronicles.length;
+    $('#recTypes').innerHTML = REC_GROUPS.map(([g, items]) => `<div class="recgroup"><span class="recg">${g}</span>${items.map(([t, l]) => `<button type="button" data-rec="${t}" aria-pressed="${ui.recType === t}">${l}<b>${counts[t] || 0}</b></button>`).join('')}</div>`).join('');
     const t = ui.recType;
     const body = $('#recBody');
+    if (t === 'chronicle') {
+      const startDecade = sim.startYear + sim.chronicles.length * 10;
+      const live = sim.buildChronicle(startDecade, sim.year);
+      body.innerHTML = `<section class="chron live"><h3>${startDecade}年〜（進行中の10年）</h3>${chronicleHTML(live)}</section>` + sim.chronicles.slice().reverse().map((c) => `<section class="chron"><h3>${c.from}〜${c.to}年の年代記</h3>${chronicleHTML(c)}</section>`).join('');
+      return;
+    }
+    if (t === 'tourney') {
+      const list = sim.tourneys.filter((x) => inYear(x.y)).slice().reverse();
+      body.innerHTML = list.length ? list.map((x) => `<section class="awyear"><h3>第${x.no}回（${x.y}年）${x.champ !== null ? '　優勝 ' + hlink(sim.heroes[x.champ]) : '　開催中'}</h3>${bracket(x)}</section>`).join('') : '<p class="empty">全国大会は毎年10月に開かれます。</p>';
+      return;
+    }
+    if (t === 'cover') {
+      const list = sim.covers.filter((c) => inYear(c.y)).slice().reverse().slice(0, ui.recLimit);
+      const cnt = {};
+      for (const c of sim.covers) cnt[c.h] = (cnt[c.h] || 0) + 1;
+      body.innerHTML = list.length ? `<div class="tablewrap"><table class="rec"><thead><tr><th>号</th><th>表紙</th><th>見出し</th><th>通算</th></tr></thead><tbody>${list.map((c) => `<tr><td class="dt">Vol.${c.vol}<br>${G.fmtDate(c.y, c.d)}</td><td>${hlink(sim.heroes[c.h])}</td><td>${esc(c.head)}</td><td class="nu">${cnt[c.h]}回</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">週刊ヒーローは毎週月曜日に発売されます。</p>';
+      return;
+    }
     if (t === 'awards') {
       const list = sim.awards.filter((a) => inYear(a.year)).slice().reverse();
       body.innerHTML = list.length ? list.map((a) => `<section class="awyear"><h3>${a.year}年　年間1位 ${hlink(sim.heroes[a.champ])}</h3><ul class="awards">${a.list.map((x) => `<li><span class="k">${esc(x.title)}</span><span>${hlink(sim.heroes[x.id])}<small>${esc(x.note)}</small></span></li>`).join('')}</ul></section>`).join('') : '<p class="empty">年間表彰は12月31日に行われます。</p>';
@@ -475,12 +599,36 @@
       kaiju: ['日付', '怪獣', '結果', '中心となったヒーロー', '', (l) => `${date(l)}<td>${Vv(l.v)}</td><td>${l.res === '撃破' ? '<span class="ok">撃破</span>' : '<span class="ng">撤退</span>'}</td><td>${H(l.h)}</td><td></td>`],
       org: ['日付', '組織', '', '突入を率いたヒーロー', '', (l) => `${date(l)}<td>${link('o', sim.orgs[l.o])}</td><td></td><td>${H(l.h)}</td><td></td>`],
       marry: ['日付', 'ヒーロー', 'お相手', '', '', (l) => `${date(l)}<td>${H(l.h)}</td><td>${H(l.h2)}</td><td></td><td></td>`],
+      inherit: ['日付', '弟子', '師匠', '師匠の状態', '改名', (l) => `${date(l)}<td>${H(l.h)}</td><td>${H(l.m)}</td><td>${STATUS[sim.heroes[l.m].status] || '現役'}</td><td>${l.renamed ? '二代目を襲名' : '―'}</td>`],
+      milestone: ['日付', 'ヒーロー', '節目', '', '', (l) => `${date(l)}<td>${H(l.h)}</td><td>${MS_LABEL[l.key.replace(/\d+$/, '')] || MS_LABEL[l.key] || ''}${l.key === 'top1' || l.key === 'cap1' ? '' : ' ' + l.num + (l.key.startsWith('career') || l.key.startsWith('streak') ? '年' : l.key.startsWith('cap') ? '人' : '件')}</td><td></td><td></td>`],
+      saga: ['日付', 'ヒーロー', '宿敵', '結末', '戦績', (l) => `${date(l)}<td>${H(l.h)}</td><td>${Vv(l.v)}</td><td>${l.res === '決着' ? '<span class="ok">決着</span>' : l.res === '悲劇' ? '<span class="ng">殉職</span>' : '未決着'}</td><td class="nu">${l.since}年〜・${l.bouts}戦${l.w}勝${l.l}敗</td>`],
+      boss: ['日付', '黒幕', '結果', '最後の一撃', '参戦', (l) => `${date(l)}<td>${Vv(l.v)}</td><td>${l.res === '撃破' ? '<span class="ok">撃破</span>' : `<span class="ng">${esc(l.res)}</span>`}</td><td>${H(l.h)}</td><td class="nu">${l.heroes.length}名</td>`],
+      era: ['年', '新しい時代', 'それまで', '', '', (l) => `<td class="dt">${l.y}年</td><td><b>${esc(l.name)}</b></td><td>${esc(l.prev)}</td><td></td><td></td>`],
+      policy: ['日付', '出来事', '支持率', '', '', (l) => `${date(l)}<td>${esc(l.kind)}</td><td class="nu">${l.ap}%</td><td></td><td></td>`],
+      agency: ['日付', '出来事', '事務所', '関係者', '', (l) => `${date(l)}<td>${esc(l.kind)}</td><td>${esc(l.a)}${l.from && Array.isArray(l.from) ? '<br><small>' + l.from.map(esc).join('＋') + '</small>' : l.from ? '<br><small>移籍元 ' + esc(l.from) + '</small>' : ''}</td><td>${l.h !== undefined ? H(l.h) : '―'}</td><td></td>`],
     }[t];
     const head = cols.slice(0, 5).map((c) => `<th>${c}</th>`).join('');
     const shown = rows.slice(0, ui.recLimit);
-    const withNews = t === 'scandal' || t === 'death';
+    const withNews = ['scandal', 'death', 'saga', 'boss', 'policy'].includes(t);
     body.innerHTML = `<div class="tablewrap"><table class="rec"><thead><tr>${head}</tr></thead><tbody>${shown.map((l) => `<tr>${cols[5](l)}</tr>${withNews ? `<tr class="sub"><td></td><td colspan="4">${newsLine(l)}</td></tr>` : ''}`).join('')}</tbody></table></div>
       ${rows.length > shown.length ? `<button type="button" class="more" data-more="rec">さらに表示（残り${rows.length - shown.length}件）</button>` : ''}`;
+  }
+
+  function chronicleHTML(c) {
+    const H = (id) => hlink(sim.heroes[id]);
+    const k = (v, l) => `<div class="kpi"><b>${v}</b><span>${l}</span></div>`;
+    const sec = (title, body) => (body ? `<h4>${title}</h4>${body}` : '');
+    return `<div class="kpis">${k(num(c.totals.inc), '事件')}${k(num(c.totals.captures), '検挙')}${k(c.totals.kaiju, '怪獣撃破')}${k(c.totals.scandals, 'スキャンダル')}${k(c.totals.deaths, '殉職')}</div>
+      ${c.champs.length ? `<p class="bio">この期間で最も多く頂点に立ったのは${H(c.dynasty.id)}（年間1位${c.dynasty.n}回）。</p>` : '<p class="mapnote">まだ年間表彰は行われていません。</p>'}
+      ${sec('歴代の年間1位', c.champs.length ? `<ul class="list">${c.champs.map((x) => `<li><span class="k">${x.y}年</span>${H(x.id)}${x.mvp !== undefined && x.mvp !== x.id ? `<small class="mapnote">MVP ${link('h', sim.heroes[x.mvp])}</small>` : ''}</li>`).join('')}</ul>` : '')}
+      ${sec('時代の移り変わり', c.eras.length ? `<ul class="list">${c.eras.map((l) => `<li><span class="k">${l.y}年</span>${esc(l.name)}</li>`).join('')}</ul>` : '')}
+      ${sec('黒幕との戦い', c.bosses.length ? `<ul class="list">${c.bosses.map((l) => `<li><span class="k">${l.y}年</span>${logSummary(l)}</li>`).join('')}</ul>` : '')}
+      ${sec('決着した因縁', c.sagas.length ? `<ul class="list">${c.sagas.map((l) => `<li><span class="k">${l.y}年</span>${logSummary(l)}</li>`).join('')}</ul>` : '')}
+      ${sec('全国大会の優勝者', c.tourneys.length ? `<ul class="list">${c.tourneys.map((x) => `<li><span class="k">${x.y}年</span>${H(x.id)}</li>`).join('')}</ul>` : '')}
+      ${sec('殿堂入り', c.hof.length ? `<p class="bio">${c.hof.map(H).join('　')}</p>` : '')}
+      ${sec('殉職したヒーロー', c.deaths.length ? `<p class="bio">${c.deaths.map(H).join('　')}</p>` : '')}
+      ${sec('闇に堕ちたヒーロー', c.falls.length ? `<p class="bio">${c.falls.map(H).join('　')}</p>` : '')}
+      ${c.scandalKing ? `<h4>最もスキャンダルの多かったヒーロー</h4><p class="bio">${H(c.scandalKing.id)}（${c.scandalKing.n}件）</p>` : ''}`;
   }
 
   // ---------- 名鑑・ヴィラン・組織 ----------
@@ -526,8 +674,15 @@
         <div class="meter blue"><span>捜査進捗</span><i><b style="width:${Math.min(100, o.intel)}%"></b></i><span>${Math.round(Math.min(100, o.intel))}</span></div></div>`;
     };
     const teams = sim.teams.filter((t) => t.active);
-    $('#pane-org').innerHTML = `<h2>活動中のヴィラン組織<small>${act.length}組織・捜査進捗が100に達すると一斉摘発</small></h2>
-      <div class="cards">${act.map(orgCard).join('') || '<p class="empty">現在、活動中の組織はありません。</p>'}</div>
+    const ags = sim.agencyStats();
+    const topP = ags.length ? ags[0].power : 1;
+    const agMove = (a) => (a.prevRank === null || a.prevRank === undefined ? '<span class="new">NEW</span>' : a.prevRank > a.rank ? `<span class="up">▲${a.prevRank - a.rank}</span>` : a.prevRank < a.rank ? `<span class="down">▼${a.rank - a.prevRank}</span>` : '<span class="same">―</span>');
+    const agLog = sim.log.filter((l) => l.t === 'agency').slice(-5).reverse();
+    $('#pane-org').innerHTML = `<h2>事務所の勢力ランキング<small>所属ヒーローのポイント合計・矢印は前月比</small></h2>
+      <table class="rk-table"><tbody>${ags.slice(0, 15).map((a) => `<tr><td class="rk">${a.rank}</td><td class="mv">${agMove(a)}</td><td class="who"><b>${esc(a.name)}</b><span class="st">${esc(a.type)}</span>${a.founder !== undefined ? `<span class="st gold">${esc(sim.heroes[a.founder].name)}が設立</span>` : ''}<small>${a.region || '全国'}・所属${a.members}名</small><i class="bar"><b style="width:${(a.power / topP) * 100}%"></b></i></td><td class="sc">${num(a.power)}</td></tr>`).join('')}</tbody></table>
+      ${agLog.length ? `<ul class="list ag-log">${agLog.map((l) => `<li><span class="k">${l.y}年${monthDay(l)}</span>${esc(l.kind)}：${esc(l.a)}${l.h !== undefined ? '（' + link('h', sim.heroes[l.h]) + '）' : ''}</li>`).join('')}</ul>` : ''}
+      <div class="sec"><h2>活動中のヴィラン組織<small>${act.length}組織・捜査進捗が100に達すると一斉摘発</small></h2>
+      <div class="cards">${act.map(orgCard).join('') || '<p class="empty">現在、活動中の組織はありません。</p>'}</div></div>
       <div class="sec"><h2>ヒーローチーム<small>${teams.length}チーム</small></h2>
       <ul class="list">${teams.map((t) => `<li><span class="k">${link('t', t)}</span><span>${t.members.map((id) => link('h', sim.heroes[id])).join('、')}</span></li>`).join('')}</ul></div>
       ${gone.length ? `<div class="sec"><h2>壊滅した組織<small>${gone.length}組織</small></h2><ul class="list">${gone.slice().reverse().map((o) => `<li><span class="k">${link('o', o)}</span><span>${o.destroyedYear}年に壊滅</span></li>`).join('')}</ul></div>` : ''}`;
@@ -585,14 +740,17 @@
     if (h.apprentices.length) rel.push(['弟子', h.apprentices.map((id) => link('h', sim.heroes[id])).join('、')]);
     if (h.parent !== null && h.parent !== undefined) rel.push(['親', link('h', sim.heroes[h.parent])]);
     if (h.child !== null && h.child !== undefined) rel.push(['子', link('h', sim.heroes[h.child])]);
-    if (h.nemesis !== null) rel.push(['宿敵', link('v', sim.villains[h.nemesis])]);
+    if (h.nemesis !== null) { const nv = sim.villains[h.nemesis]; rel.push(['宿敵', link('v', nv) + (nv.saga && nv.saga.h === h.id ? `（${nv.saga.since}年〜・${nv.saga.n}戦${nv.saga.w}勝${nv.saga.l}敗）` : '')]); }
+    const closed = sim.log.filter((l) => l.t === 'saga' && l.h === h.id);
+    if (closed.length) rel.push(['因縁の決着', closed.map((l) => `${link('v', sim.villains[l.v])}（${l.res}）`).join('、')]);
+    if (h.ownAgency) rel.push(['設立した事務所', esc(h.ownAgency)]);
     if (h.villainId !== null) rel.push(['現在の姿', link('v', sim.villains[h.villainId])]);
     if (h.fromVillain !== null) rel.push(['ヴィラン時代', link('v', sim.villains[h.fromVillain])]);
     const r = h.rec;
     const tier = h.power.tier + h.tierBonus;
     const yrs = h.yearRanks || [];
     openModal(`
-      <div class="pf-head">${emblem(h, true)}<h2 id="modalTitle">${esc(h.name)}</h2>${h.rank ? `<span class="rkbig">${h.rank}位</span>` : ''}${statusChip(h)}</div>
+      <div class="pf-head">${emblem(h, true)}<h2 id="modalTitle">${esc(h.name)}</h2>${favBtn(h)}${h.rank ? `<span class="rkbig">${h.rank}位</span>` : ''}${statusChip(h)}</div>
       <p class="pf-sub">本名 ${h.masked ? '非公開' : esc(h.real)}・${esc(h.gender)}・${h.age}歳・${esc(h.pref)}${esc(h.city)}・${esc(h.agency)}・活動${h.career}年目${h.bestRank ? '・最高' + h.bestRank + '位' : ''}${h.oldNames.length ? '・旧名 ' + h.oldNames.map(esc).join('、') : ''}</p>
       ${h.titles.length ? `<div class="titles">${h.titles.map((t) => `<span>${t.y} ${esc(t.title)}</span>`).join('')}</div>` : ''}
       <div class="pf-grid">
@@ -620,7 +778,9 @@
     const rel = [];
     if (v.org !== null) rel.push(['所属', link('o', sim.orgs[v.org]) + (v.orgRank === 'boss' ? '（首領）' : v.orgRank === 'exec' ? '（幹部）' : '')]);
     if (v.formerOrg !== undefined && v.org === null) rel.push(['元所属', link('o', sim.orgs[v.formerOrg])]);
-    if (v.nemesis !== null) rel.push(['宿敵', link('h', sim.heroes[v.nemesis])]);
+    if (v.nemesis !== null) rel.push(['宿敵', link('h', sim.heroes[v.nemesis]) + (v.saga ? `（${v.saga.since}年〜・${v.saga.n}戦、${v.saga.closed ? '決着済み' : '継続中'}）` : '')]);
+    if (v.sealed) rel.push(['状態', '特別監獄に収監（脱獄不能）']);
+    if (v.isBoss) rel.push(['正体', 'すべての組織を束ねる黒幕']);
     if (v.caughtBy.length) rel.push([v.kind === 'kaiju' ? '撃破' : '逮捕した', [...new Set(v.caughtBy)].map((id) => link('h', sim.heroes[id])).join('、')]);
     if (v.formerHero !== null) rel.push(['ヒーロー時代', link('h', sim.heroes[v.formerHero])]);
     if (v.heroId !== null && v.heroId !== undefined) rel.push(['改心後', link('h', sim.heroes[v.heroId])]);
@@ -671,10 +831,12 @@
     const retires = sim.log.filter((l) => l.y === a.year && l.t === 'retire');
     const hofs = sim.log.filter((l) => l.y === a.year && l.t === 'hof');
     openModal(`<h2 class="yearend-title" id="modalTitle">${a.year}年 ヒーロー年間表彰</h2>
-      <p class="pf-sub">事件${num(Object.values(st.inc).reduce((x, y) => x + y, 0))}件・ヴィラン検挙${st.captures}名・怪獣撃破${st.kaijuDown}体・スキャンダル${st.scandals}件・殉職${st.deaths}名・引退${retires.length}名</p>
+      <p class="pf-sub">${esc(a.era || '')}・支持率${a.approval ?? '–'}%・事件${num(Object.values(st.inc).reduce((x, y) => x + y, 0))}件・ヴィラン検挙${st.captures}名・怪獣撃破${st.kaijuDown}体・スキャンダル${st.scandals}件・殉職${st.deaths}名・引退${retires.length}名</p>
       <div class="champ">${emblem(champ, true)}<div><span>年間ランキング1位</span><b>${link('h', champ)}</b><small>${esc(champ.power.name)}・${esc(champ.pref)}・${esc(champ.agency)}</small></div></div>
       <ul class="awards">${a.list.map((x) => `<li><span class="k">${esc(x.title)}</span><span>${hlink(sim.heroes[x.id])}<small>${esc(x.note)}</small></span></li>`).join('')}</ul>
       ${deaths.length ? `<h4>今年、殉職したヒーロー</h4><p class="bio">${deaths.map((l) => hlink(sim.heroes[l.h])).join('　')}</p>` : ''}
+      ${(() => { const tt = sim.tourneys.find((x) => x.y === a.year && x.champ !== null); const bs = sim.log.filter((l) => l.t === 'boss' && l.y === a.year); const sg = sim.log.filter((l) => l.t === 'saga' && l.y === a.year && l.res === '決着'); return (tt || bs.length || sg.length) ? `<h4>今年の名場面</h4><ul class="list">${tt ? `<li><span class="k">全国大会</span>${hlink(sim.heroes[tt.champ])}が優勝</li>` : ''}${bs.map((l) => `<li><span class="k">審判の日</span>${logSummary(l)}</li>`).join('')}${sg.map((l) => `<li><span class="k">因縁の決着</span>${logSummary(l)}</li>`).join('')}</ul>` : ''; })()}
+      ${sim.chronicles.length && sim.chronicles[sim.chronicles.length - 1].to === a.year ? `<div class="chron-note"><b>この10年が年代記にまとめられました。</b><button type="button" class="btn alt" data-chron="${sim.chronicles.length - 1}">年代記を読む</button></div>` : ''}
       ${hofs.length ? `<h4>今年の殿堂入り</h4><p class="bio">${hofs.map((l) => hlink(sim.heroes[l.h])).join('　')}</p>` : ''}
       <h4>年間ランキング トップ10</h4>
       <table class="rk-table"><tbody>${a.top10.map((id, i) => { const h = sim.heroes[id]; return `<tr><td class="rk">${i + 1}</td><td class="mv"></td><td class="who"><div class="whoin">${emblem(h)}<div>${link('h', h)}<small>${esc(h.power.name)}・${esc(h.pref)}</small></div></div></td><td class="sc">${num(score(h))}</td></tr>`; }).join('')}</tbody></table>
@@ -700,6 +862,19 @@
   // ---------- イベント ----------
   function bind() {
     document.addEventListener('click', (e) => {
+      const fb = e.target.closest('[data-fav]');
+      if (fb) {
+        const id = +fb.dataset.fav;
+        if (ui.favs.has(id)) ui.favs.delete(id); else ui.favs.add(id);
+        saveFavs();
+        document.querySelectorAll(`[data-fav="${id}"]`).forEach((b) => { const on = ui.favs.has(id); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '★' : '☆'; });
+        if (currentPane() === 'dash') renderDash();
+        return;
+      }
+      const fo = e.target.closest('[data-favonly]');
+      if (fo) { ui.favOnly = !ui.favOnly; renderFilters(); rebuildFeed(); return; }
+      const ch = e.target.closest('[data-chron]');
+      if (ch) { cancelCountdown(); const c = sim.chronicles[+ch.dataset.chron]; openModal(`<h2 class="yearend-title" id="modalTitle">${c.from}〜${c.to}年の年代記</h2>${chronicleHTML(c)}`); return; }
       const nm = e.target.closest('.nm');
       if (nm) {
         cancelCountdown();

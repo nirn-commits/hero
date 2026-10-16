@@ -48,6 +48,9 @@
       this.ended = false;
       this.st = this.newStats();
       this.build(opts.heroes || 340, opts.villains || 90);
+      this.ensureStory();
+      this.agencyStats();
+      if (this.ranked[0]) this.ranked[0].ms.push('top1');
     }
 
     newStats() {
@@ -81,7 +84,10 @@
       const n = { id: this.news.length, y: this.year, d: this.day, cat, imp, text: fill(text) };
       this.news.push(n);
       this.today.push(n);
-      for (const h of refs.h || []) if (h) h.hist.push(n.id);
+      const hs = (refs.h || []).filter(Boolean);
+      if (hs.length) n.h = hs.map((h) => h.id);
+      const bz = [0, 1, 3, 8][imp] * (cat === 'scandal' ? 1.5 : 1);
+      for (const h of hs) { h.hist.push(n.id); h.buzz = (h.buzz || 0) + bz; }
       for (const v of refs.v || []) if (v) v.hist.push(n.id);
       if (refs.o) refs.o.hist.push(n.id);
       return n;
@@ -129,18 +135,19 @@
 
       this.upkeep();
       this.calendar(m, dd);
+      this.storyDaily(m, dd);
       this.incidents(m);
       this.heroEvents();
       this.villainEvents();
       this.orgEvents();
       this.relationEvents();
-      if (R.chance(0.06)) this.post('world', 1, fill(R.pick(D.worldNews), { pct: R.int(48, 86), num: R.int(800, 4200) }));
-      if (!(m === 4 && dd === 1) && R.chance(0.06) && this.ranked.length < 360) this.debut();
+      if (R.chance(0.05)) this.post('world', 1, fill(R.pick(D.worldNews), { pct: Math.round(this.approval), num: R.int(800, 4200) }));
+      if (!(m === 4 && dd === 1) && R.chance(0.06 * this.mod('debut')) && this.ranked.length < 360) this.debut();
       this.populationControl();
 
       this.computeRanks();
       if (dow === 1) this.weekly();
-      if (dd === 1 && this.day > 0) this.monthly(m);
+      if (dd === 1 && this.day > 0) { this.monthly(m); this.storyMonthly(m); }
       if (m === 6 && dd === 30) this.halfYear();
       if (this.day === G.daysInYear(this.year) - 1) this.yearEnd();
       else this.day++;
@@ -163,14 +170,15 @@
         }
       }
       for (const v of this.villains) {
-        if (v.status !== 'captured' || v.kind === 'kaiju') continue;
+        if (v.status !== 'captured' || v.kind === 'kaiju' || v.sealed) continue;
         const mult = { C: 0.6, B: 1, A: 1.6, S: 2.6 }[v.threat];
         if (v.jail > 0) { v.jail--; continue; }
-        if (R.chance(0.0007 * mult)) {
+        if (R.chance(0.0007 * mult * this.mod('escape'))) {
           v.status = 'free';
           this.st.escapes++;
           const how = R.pick(['看守を能力で操り', '面会者に変装した仲間の手引きで', '能力抑制装置の故障に乗じて', '刑務所の壁を内側から破壊して', '移送中の護送車を襲撃され', '模範囚を装い続けた末に']);
-          this.post('villain', v.threat === 'S' || v.threat === 'A' ? 2 : 1, `収監中のヴィラン${V(v)}が${how}脱獄した。`, { v: [v] });
+          const sg = v.saga && !v.saga.closed && this.heroes[v.saga.h].status === 'active' ? this.heroes[v.saga.h] : null;
+          this.post('villain', sg || v.threat === 'S' || v.threat === 'A' ? 2 : 1, `収監中のヴィラン${V(v)}が${how}脱獄した。` + (sg ? fill(R.pick(D.sagaLines.escape), { hero: H(sg) }) : ''), { v: [v], h: sg ? [sg] : [] });
         }
       }
     }
@@ -181,7 +189,7 @@
       if (m === 4 && dd === 1) {
         const rookies = [];
         const act = this.rankedHeroes().length;
-        for (let i = 0, n = clamp(Math.round((370 - act) / 2) + 14, 6, 26); i < n; i++) rookies.push(this.debut(true));
+        for (let i = 0, n = clamp(Math.round(((370 - act) / 2 + 14) * this.mod('debut')), 6, 34); i < n; i++) rookies.push(this.debut(true));
         this.legacyDebuts();
         const best = rookies.slice().sort((a, b) => G.eff(b, { f: 0.5, r: 0.25, i: 0.25 }) - G.eff(a, { f: 0.5, r: 0.25, i: 0.25 }))[0];
         this.post('world', 3, `今年の新人は${rookies.length}名。中でも「${best.power.name}」を操る${H(best)}は首席卒業の逸材として注目を集めている。`, { h: [best] });
@@ -211,16 +219,16 @@
       let n = R.int(5, 9);
       const free = this.villains.filter((v) => v.status === 'free' && v.kind === 'villain');
       const w = {
-        petty: 40, rescue: 22 + (m >= 7 && m <= 8 ? 8 : 0) + (m === 1 || m === 2 ? 5 : 0), mystery: 10,
-        villain: 10 + free.length * 0.25, weird: 3.5,
+        petty: 40 * this.mod('petty'), rescue: (22 + (m >= 7 && m <= 8 ? 8 : 0) + (m === 1 || m === 2 ? 5 : 0)) * this.mod('rescue'), mystery: 10,
+        villain: (10 + free.length * 0.25) * this.mod('villain'), weird: 3.5,
       };
       const types = Object.keys(w);
       for (let i = 0; i < n; i++) this.incident(R.wpick(types, (t) => w[t]));
       let dp = 0.01;
       if (m === 9 || m === 8) dp *= 3;
       if (m === 6 || m === 7) dp *= 1.8;
-      if (R.chance(dp)) this.incident('disaster');
-      if (R.chance(0.03)) this.incident('kaiju');
+      if (R.chance(dp * this.mod('disaster'))) this.incident('disaster');
+      if (R.chance(0.03 * this.mod('kaiju'))) this.incident('kaiju');
     }
 
     incident(type, extra = {}) {
@@ -232,7 +240,7 @@
 
       if (type === 'villain') {
         if (!v) {
-          const free = this.villains.filter((x) => x.status === 'free' && x.kind === 'villain' && (!x.org || x.orgRank === 'member'));
+          const free = this.villains.filter((x) => x.status === 'free' && x.kind === 'villain' && !x.isBoss && (!x.org || x.orgRank === 'member'));
           if (!free.length) return this.incident('petty');
           v = R.wpick(free, (x) => 10 + x.notoriety);
         }
@@ -265,7 +273,7 @@
 
       // 出動ヒーロー
       let count = { petty: R.chance(0.2) ? 2 : 1, rescue: R.int(1, 2), mystery: R.int(1, 2), weird: R.int(1, 2), villain: 1 + (v && (v.threat === 'A' || v.threat === 'S') ? R.int(0, 2) : R.chance(0.25) ? 1 : 0), kaiju: R.int(4, 7), disaster: R.int(4, 8), org: R.int(3, 6), raid: R.int(4, 7) }[type];
-      const hs = this.responders(type, pref, count, v, def.need, diff);
+      const hs = this.responders(type, pref, count, v, def.need, diff, extra.lead);
       if (!hs.length) {
         this.post('case', BIG[type] ? 3 : 1, intro + 'しかし近くに出動できるヒーローがおらず、警察が対応にあたった。');
         if (v && type === 'villain') { v.notoriety += 3; v.crimes++; }
@@ -290,10 +298,8 @@
       let text = intro + fill(R.pick(def[out]), ctx);
 
       // 因縁
-      if (v && v.kind === 'villain' && all.some((h) => h.id === v.nemesis)) {
-        v.nemCount = (v.nemCount || 1) + 1;
-        text += fill(R.pick(D.nemesisLines), { n: v.nemCount });
-      }
+      const big0 = !!BIG[type];
+      text += this.onIncident(type, v, out, all, big0);
 
       // 報酬・記録
       const big = !!BIG[type];
@@ -310,6 +316,7 @@
           r.cases++;
           if (out === 'great' || out === 'win') { r.wins++; if (type === 'rescue' || type === 'disaster') r.rescues++; if (type === 'kaiju') r.kaiju++; } else if (out === 'bad') r.losses++;
         }
+        this.checkMilestones(h);
         h.xp += diff * 0.12;
         while (h.xp >= 100) { h.xp -= 100; const k = R.pick(['pow', 'tec', 'spd', 'int', 'men']); h.stats[k] = Math.min(99, h.stats[k] + R.int(1, 3)); }
       });
@@ -318,7 +325,7 @@
       const deaths = [];
       if (out === 'bad') {
         for (const h of all) {
-          if (R.chance(big || (v && v.threat === 'S') ? 0.035 : 0.004)) { deaths.push(h); continue; }
+          if (R.chance((big || (v && v.threat === 'S') ? 0.035 : 0.004) * this.mod('death'))) { deaths.push(h); continue; }
           if (R.chance(0.55)) this.injure(h, R.int(5, big ? 60 : 30));
         }
       } else if (out === 'win' && ratio < 1.15 && R.chance(0.3)) this.injure(lead, R.int(3, 20));
@@ -331,15 +338,17 @@
       }
       if (o && type === 'raid') text += this.raidOutcome(o, out, lead);
 
-      if ((out === 'great' || (out === 'win' && R.chance(0.4))) && R.chance(big ? 0.6 : 0.18)) text += `${H(lead)}は${this.quote(lead, true)}と語った。`;
+      if ((out === 'great' || (out === 'win' && R.chance(0.4))) && R.chance(big ? 0.6 : 0.18)) text += all.length >= 2 && R.chance(0.35) ? this.duoQuote(lead, all[1]) : `${H(lead)}は${this.quote(lead, true)}と語った。`;
       else if (out === 'bad' && R.chance(0.25) && !deaths.includes(lead)) text += `${H(lead)}は${this.quote(lead, false)}と悔しさをにじませた。`;
 
       const cat = big ? 'big' : type === 'villain' ? 'villain' : 'case';
       let imp = big ? 3 : type === 'villain' ? (v.threat === 'S' || v.threat === 'A' ? 2 : 1) : out === 'great' && diff > 70 ? 2 : 1;
       if (type === 'weird') imp = Math.max(imp, 2);
+      if (this.pendingSaga) imp = 3;
       imp = this.impFor(imp, all);
       if (type === 'disaster' || type === 'kaiju') text = `【${D.bigHeadlines[type]}】` + text;
       this.post(cat, imp, text, { h: all, v: v ? [v] : [], o });
+      this.flushSaga();
       if (this.pendingKaiju) { this.logRec('kaiju', this.pendingKaiju); this.pendingKaiju = null; }
       if (this.pendingOrgDown) { this.logRec('org', { o: this.pendingOrgDown, h: lead.id }); this.pendingOrgDown = null; }
 
@@ -347,7 +356,7 @@
       for (const h of all) h.busy = true;
     }
 
-    responders(type, pref, count, v, need, diff) {
+    responders(type, pref, count, v, need, diff, forced) {
       const big = !!BIG[type];
       const pool = this.heroes.filter((h) => h.status === 'active' && !h.busy);
       if (!pool.length) return [];
@@ -361,7 +370,7 @@
         if (v && v.nemesis === h.id) q *= 12;
         return loc * q;
       };
-      const lead = R.wpick(pool, wfn);
+      const lead = forced && pool.includes(forced) ? forced : R.wpick(pool, wfn);
       if (!lead) return [];
       const out = [lead];
       // チームメイト・弟子の同行
@@ -408,6 +417,7 @@
       h.rec.captures++;
       h.yrec.captures++;
       this.st.captures++;
+      this.checkCapture(h);
       if (v.org !== null) {
         const o = this.orgs[v.org];
         if (o.status === 'active') o.intel += v.orgRank === 'exec' ? 14 : 5;
@@ -449,7 +459,10 @@
       this.st.monthly[this.month].dead++;
       this.leaveTeam(h);
       const by = v ? `${V(v)}との戦いで` : '救助活動中に';
-      this.post('big', 3, `【訃報】${H(h)}が${by}殉職した。${typeof h.age === 'number' ? '享年' + h.age + '。' : ''}${R.pick(['葬儀には全国から多くのファンが参列した。', '現場には献花が絶えない。', '同僚ヒーローたちは悲しみに暮れている。', 'ヒーローたちは黙とうを捧げた。'])}`, { h: [h], v: v ? [v] : [] });
+      const sagaT = this.sagaOnDeath(h, v);
+      this.approve(-1);
+      this.post('big', 3, `【訃報】${sagaT}${H(h)}が${by}殉職した。${typeof h.age === 'number' ? '享年' + h.age + '。' : ''}${R.pick(['葬儀には全国から多くのファンが参列した。', '現場には献花が絶えない。', '同僚ヒーローたちは悲しみに暮れている。', 'ヒーローたちは黙とうを捧げた。'])}${this.tribute(h, 'death')}`, { h: [h], v: v ? [v] : [] });
+      this.flushSaga();
       this.logRec('death', { h: h.id, v: v ? v.id : null, age: h.age, rank: h.rank, career: h.career });
       this.afterCareer(h);
       if (h.spouse !== null && this.heroes[h.spouse].status === 'active') {
@@ -459,7 +472,7 @@
       }
       if (h.rival !== null) {
         const r = this.heroes[h.rival];
-        if (r.status === 'active') this.post('life', 2, `ライバルの${H(h)}を失った${H(r)}は、そのマントを形見として受け継いだ。`, { h: [r, h] });
+        if (r.status === 'active') this.post('life', 2, `ライバルの${H(h)}を失った${H(r)}は、そのマントを形見として受け継いだ。「${fill(R.pick(D.tributeDeath), { p: H(h) })}」`, { h: [r, h] });
       }
       if (v && v.kind === 'villain' && R.chance(0.6)) {
         const avenger = this.heroes.filter((x) => x.status === 'active' && x.nemesis === null && (x.rival === h.id || x.region === h.region))[0];
@@ -473,9 +486,9 @@
         if (h.status !== 'active' && h.status !== 'off') continue;
         const tr = h.traits.map(Gen.traitObj);
         const sc = tr.reduce((m, t) => m * t.sc, 1), md = tr.reduce((m, t) => m * t.md, 1);
-        if (R.chance(0.00028 * sc * (1 + h.fame / 400) * (1 + (60 - h.stats.mor) / 100))) { this.scandal(h); continue; }
+        if (R.chance(0.00028 * sc * this.mod('scandal') * (1 + h.fame / 400) * (1 + (60 - h.stats.mor) / 100))) { this.scandal(h); continue; }
         if (h.status !== 'active') continue;
-        if (R.chance(0.0009 * md * (0.5 + h.stats.cha / 100) * (1 + Math.min(h.fame, 600) / 300))) { this.mediaEvent(h); continue; }
+        if (R.chance(0.0009 * md * this.mod('media') * (0.5 + h.stats.cha / 100) * (1 + Math.min(h.fame, 600) / 300))) { this.mediaEvent(h); continue; }
         if (R.chance(0.0006)) { this.lifeEvent(h); continue; }
         const ap = (typeof h.age === 'number' && h.age > 35 ? 0.00008 * Math.pow(h.age - 35, 1.35) : 0.00002) + (h.career > 12 ? 0.00004 * (h.career - 12) : 0);
         if (R.chance(ap)) this.retire(h);
@@ -503,7 +516,7 @@
         if (R.chance(0.15)) { text += R.pick(Rx.twist); h.fame += 40; act = 'twist'; }
       } else if (sev === 2) {
         text += fill(R.pick(Rx.apology), { h: H(h) });
-        if (R.chance(0.4)) { text += fill(R.pick(Rx.suspend), { h: H(h) }); this.suspend(h, R.int(14, 45)); act = 'suspend'; }
+        if (R.chance(Math.min(0.9, 0.4 * this.mod('suspend')))) { text += fill(R.pick(Rx.suspend), { h: H(h) }); this.suspend(h, R.int(14, 45)); act = 'suspend'; }
         else if (R.chance(0.1)) { text += R.pick(Rx.twist); h.fame += 50; act = 'twist'; }
       } else {
         const r = R.f();
@@ -524,6 +537,7 @@
       h.stats.mor = Math.max(0, h.stats.mor - sev * 2);
       this.post('scandal', Math.min(3, sev + (this.isTop(h, 30) ? 1 : 0)), text, { h: [h] });
       this.logRec('scandal', { h: h.id, sev, act, rank: h.rank });
+      this.approve(-sev * 1.3);
       if (act === 'arrest') this.logRec('retire', { h: h.id, reason: '免許はく奪', career: h.career, noNews: false });
     }
 
@@ -535,7 +549,7 @@
 
     mediaEvent(h) {
       const ctx = { h: H(h), pref: h.pref, title: R.pick(D.bookTitles) };
-      h.fame += R.int(8, 30);
+      h.fame += R.int(8, 30) * this.mod('fame');
       h.rec.media++;
       h.yrec.media++;
       this.post('media', this.isTop(h, 10) ? 2 : 1, fill(R.pick(D.media), ctx), { h: [h] });
@@ -554,7 +568,7 @@
         case 'marry': { h.married = true; h.fame += 20; break; }
         case 'baby': { h.fame += 10; break; }
         case 'move': {
-          const ag = R.pick(D.agencies.filter((a) => a.name !== h.agency && (a.region === null || a.region === h.region)));
+          const ag = R.pick([...this.activeAgencies(h.region), { name: 'フリーランス' }].filter((a) => a.name !== h.agency));
           if (!ag) return;
           h.agency = ag.name; ctx.agency = ag.name;
           if (ag.name === 'フリーランス') { this.post('life', 1, `${H(h)}が事務所を退所し、フリーランスとして独立した。`, { h: [h] }); return; }
@@ -580,11 +594,12 @@
       h.endYear = this.year;
       this.st.retired++;
       this.leaveTeam(h);
-      for (const id of h.apprentices) { const a = this.heroes[id]; if (a.mentor === h.id) a.mentor = null; }
-      const text = fill(R.pick(D.retireLines), { h: H(h), years: Math.max(1, h.career) });
+      const text = fill(R.pick(D.retireLines), { h: H(h), years: Math.max(1, h.career) }) + this.sagaOnRetire(h) + this.tribute(h, 'retire');
       this.post('life', this.isTop(h, 50) || h.career > 20 ? 3 : 2, text, { h: [h] });
       this.logRec('retire', { h: h.id, reason: '引退', career: h.career, age: h.age, best: h.bestRank });
+      this.flushSaga();
       this.afterCareer(h);
+      for (const id of h.apprentices) { const a = this.heroes[id]; if (a.mentor === h.id) a.mentor = null; }
     }
 
     fall(h, how) {
@@ -606,10 +621,13 @@
       if (h.rival !== null) { const r = this.heroes[h.rival]; if (r.status === 'active') { v.nemesis = r.id; r.nemesis = v.id; } }
       this.post('villain', 3, `【衝撃】元ヒーローの${H(h)}が${how}、ヴィラン${V(v)}として活動を始めたことが確認された。${R.pick(['かつてのファンは言葉を失っている。', '超常対策庁は最重要警戒対象に指定した。', '「信じられない」と元同僚は語った。'])}`, { h: [h], v: [v] });
       this.logRec('fallen', { h: h.id, v: v.id });
+      this.approve(-6);
     }
 
     debut(batch) {
       const h = Gen.hero(this, { rookie: true });
+      h.ms = []; h.t100 = 0; h.buzz = 0;
+      this.fixAgency(h);
       h.debutYear = this.year;
       this.st.debuts++;
       if (!batch) this.post('life', 1, `新人ヒーロー${H(h)}が${h.pref}でデビュー。「${h.power.name}」の使い手で、${h.motive}ヒーローを志したという。`, { h: [h] });
@@ -627,7 +645,7 @@
     villainEvents() {
       const free0 = this.villains.filter((v) => v.status === 'free' && v.kind === 'villain').length;
       if (R.chance(free0 < 70 ? 0.3 : 0.08)) this.newVillain();
-      const free = this.villains.filter((v) => v.status === 'free' && v.kind === 'villain');
+      const free = this.villains.filter((v) => v.status === 'free' && v.kind === 'villain' && !v.isBoss);
       if (free.length > 2 && R.chance(0.025)) {
         const [a, b] = R.wsample(free, 2, (x) => 1 + x.notoriety);
         const [w, l] = G.eff(a, D.inc.villain.need) * R.f(0.7, 1.3) > G.eff(b, D.inc.villain.need) * R.f(0.7, 1.3) ? [a, b] : [b, a];
@@ -656,6 +674,8 @@
       this.st.reformed++;
       if (v.org !== null) v.org = null;
       const h = Gen.hero(this, { rookie: true, power: v.power, pref: this.prefObj(v.pref), job: '元ヴィラン', fromVillain: v.id });
+      h.ms = []; h.t100 = 0; h.buzz = 0;
+      this.fixAgency(h);
       h.stats = { ...v.stats, mor: 55, cha: h.stats.cha };
       h.age = v.age;
       h.real = v.real;
@@ -703,12 +723,12 @@
           }
         }
         if (!raided && o.intel >= 100 && boss.status === 'free') { raided = true; this.incident('raid', { o, v: boss }); continue; }
-        if (members.length && R.chance(0.006 + o.strength / 6000)) {
+        if (members.length && R.chance((0.006 + o.strength / 6000) * this.mod('org'))) {
           const lt = R.wpick(members, (v) => (v.orgRank === 'exec' ? 5 : v.orgRank === 'boss' ? 0.4 : 1));
           this.incident('org', { o, v: lt });
         }
         if (R.chance(0.03)) {
-          const rec = this.villains.filter((v) => v.status === 'free' && v.kind === 'villain' && v.org === null && v.formerHero === null);
+          const rec = this.villains.filter((v) => v.status === 'free' && v.kind === 'villain' && v.org === null && v.formerHero === null && !v.isBoss);
           if (rec.length) {
             const v = R.wpick(rec, (x) => x.notoriety + 5);
             Gen.join(o, v, R.chance(0.2) ? 'exec' : 'member');
@@ -749,7 +769,7 @@
     // ---------- 人間関係 ----------
     relationEvents() {
       if (!R.chance(0.3)) return;
-      const k = R.wpick(['rival', 'team', 'break', 'romance', 'mentor', 'feud', 'teamwin'], (t) => ({ rival: 3, team: 2.2, break: 0.9, romance: 1.6, mentor: 1.4, feud: 1, teamwin: 1 })[t]);
+      const k = R.wpick(['rival', 'team', 'break', 'romance', 'mentor', 'feud', 'teamwin'], (t) => ({ rival: 3, team: 2.2, break: 0.9, romance: 1.6, mentor: 3, feud: 1, teamwin: 1 })[t]);
       const act = this.activeHeroes();
       if (act.length < 10) return;
       if (k === 'rival') {
@@ -791,7 +811,7 @@
         a.fame += 10; b.fame += 10;
         this.post('media', this.impFor(1, [a, b]), `${H(a)}と${H(b)}の熱愛が発覚。[週刊誌が二人で夜の街を飛ぶ姿を撮影した。|共闘をきっかけに交際が始まったという。|ファンの間では以前から「あやしい」とうわさされていた。]`, { h: [a, b] });
       } else if (k === 'mentor') {
-        const m = R.pick(act.filter((h) => h.career >= 10 && h.apprentices.length < 2));
+        const m = R.pick(act.filter((h) => h.career >= 8 && h.apprentices.length < 3));
         if (!m) return;
         const a = R.pick(act.filter((h) => h.career <= 1 && h.mentor === null && h.region === m.region));
         if (!a) return;
@@ -851,6 +871,7 @@
       if (prevTop && top !== prevTop && this.day > 0) {
         this.post('rank', 3, `【ランキング】ヒーローランキングの首位が交代。${H(top)}が${H(prevTop)}を抜いて1位に浮上した。`, { h: [top, prevTop] });
       }
+      this.storyWeekly();
       const jumpers = this.ranked.filter((h) => h.rank <= 10 && h.weekRank !== null && h.weekRank > 10);
       if (jumpers.length && this.day > 0) this.post('rank', 2, `【ランキング】${G.joinNames(jumpers.map(H))}がトップ10入りを果たした。`, { h: jumpers });
       for (const h of this.heroes) {
@@ -909,12 +930,16 @@
       for (const h of this.ranked) h.yearRanks.push([this.year, h.rank]);
       this.awards.push({ year: this.year, champ: champ.id, list: aw, top10: this.ranked.slice(0, 10).map((h) => h.id), stats: { ...this.st } });
       const t = aw.map((a) => `${a.title}は${H(this.heroes[a.id])}`).join('、');
+      this.awards[this.awards.length - 1].approval = Math.round(this.approval);
+      this.awards[this.awards.length - 1].era = this.eraDef().name;
       this.post('rank', 3, `【${this.year}年 ヒーロー年間表彰】${t}。そして年間ランキング1位に輝いたのは${H(this.ranked[0])}だった。`, { h: aw.map((a) => this.heroes[a.id]) });
+      this.storyYearEnd();
       this.ended = true;
     }
 
     // 引退・殉職したヒーローの殿堂入りと、子どもの将来のデビュー
     afterCareer(h) {
+      this.inherit(h);
       const v = h.rec.pts + h.titles.length * 900 + (h.bestRank === 1 ? 1500 : h.bestRank !== null && h.bestRank <= 5 ? 600 : 0);
       if (v >= 4500 && h.career >= 5) {
         h.hof = this.year;
@@ -932,6 +957,8 @@
         const sameEl = D.powers.filter((x) => x.el === p.power.el);
         const power = R.chance(0.55) ? p.power : R.pick(sameEl.length ? sameEl : D.powers);
         const h = Gen.hero(this, { rookie: true, power, pref: this.prefObj(p.pref), age: R.int(16, 24), talent: 60 });
+        h.ms = []; h.t100 = 0; h.buzz = 0;
+        this.fixAgency(h);
         const second = '二代目' + p.name;
         if (!this.usedNames.has(second) && R.chance(0.6)) { this.usedNames.delete(h.name); h.name = second; this.usedNames.add(second); }
         const sur = String(p.real).split(' ')[0];
@@ -960,6 +987,7 @@
         h.startRank = h.rank;
         h.rankHist = h.rank !== null ? [[0, h.rank]] : [];
       }
+      this.storyNewYear();
       for (const v of this.villains) if (typeof v.age === 'number') v.age++;
       // 2年以上前の小さなニュースは捨てて、保存容量を抑える
       for (let i = 0; i < this.news.length; i++) {
@@ -971,11 +999,11 @@
     // ---------- 保存 ----------
     toJSON() {
       const { ranked, today, ...rest } = this;
-      return { ...rest, usedNames: [...this.usedNames], usedOrgNames: [...this.usedOrgNames], rng: R.s, ver: 2 };
+      return { ...rest, usedNames: [...this.usedNames], usedOrgNames: [...this.usedOrgNames], rng: R.s, ver: 3 };
     }
 
     static fromJSON(o) {
-      if (!o || o.ver !== 2) return null;
+      if (!o || (o.ver !== 2 && o.ver !== 3)) return null;
       const s = Object.create(Sim.prototype);
       Object.assign(s, o);
       s.usedNames = new Set(o.usedNames);
@@ -983,6 +1011,7 @@
       s.today = [];
       R.s = o.rng;
       s.computeRanks();
+      s.ensureStory();
       return s;
     }
   }

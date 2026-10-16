@@ -23,6 +23,7 @@
     <div class="clock">
       <div id="dateLabel" class="date">----年--月--日</div>
       <div class="yearbar" aria-hidden="true"><i id="yearFill"></i></div>
+      <div class="eralabel" id="eraLabel"></div>
     </div>
     <div class="controls" role="group" aria-label="進行速度">
       <button type="button" class="sp" data-sp="0" id="sp0" title="一時停止">❚❚</button>
@@ -46,7 +47,7 @@
   <button type="button" class="tab" data-tab="records" id="tab-records">記録</button>
   <button type="button" class="tab" data-tab="roster" id="tab-roster">名鑑</button>
   <button type="button" class="tab" data-tab="villain" id="tab-villain">ヴィラン</button>
-  <button type="button" class="tab" data-tab="org" id="tab-org">組織・チーム</button>
+  <button type="button" class="tab" data-tab="org" id="tab-org">勢力図</button>
 </nav>
 
 <main class="layout">
@@ -100,6 +101,8 @@
   </section>
 </main>
 
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
 <div class="modal" id="modal" hidden>
   <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <button type="button" class="close" id="modalClose" aria-label="閉じる">×</button>
@@ -115,8 +118,10 @@
 <script src="js/data_powers.js"></script>
 <script src="js/data_people.js"></script>
 <script src="js/data_events.js"></script>
+<script src="js/data_story.js"></script>
 <script src="js/generator.js"></script>
 <script src="js/sim.js"></script>
+<script src="js/story.js"></script>
 <script src="js/ui.js"></script>
 <!--/BUILD:SCRIPTS-->
 </body>

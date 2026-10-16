@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-for (const f of ['core', 'data_names', 'data_world', 'data_powers', 'data_people', 'data_events', 'generator', 'sim']) {
+for (const f of ['core', 'data_names', 'data_world', 'data_powers', 'data_people', 'data_events', 'data_story', 'generator', 'sim', 'story']) {
   vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'js', f + '.js'), 'utf8'), { filename: f + '.js' });
 }
 const G = globalThis.HG;
@@ -18,7 +18,7 @@ for (let y = 0; y < years; y++) {
   if (y > 0) sim.nextYear();
   while (!sim.ended) sim.step();
   const act = sim.rankedHeroes().length, free = sim.villains.filter((v) => v.status === 'free' && v.kind === 'villain').length;
-  console.log(`year ${sim.year}: active ${act} freeV ${free} orgs ${sim.orgs.filter((o) => o.status === 'active').length} champ ${sim.ranked[0].name} hof ${sim.log.filter((l) => l.t === 'hof' && l.y === sim.year).length} legacy ${sim.log.filter((l) => l.t === 'legacy' && l.y === sim.year).length} deaths ${sim.st.deaths} retired ${sim.st.retired} save ${(JSON.stringify(sim).length / 1e6).toFixed(2)}MB`);
+  console.log(`year ${sim.year}: active ${act} freeV ${free} orgs ${sim.orgs.filter((o) => o.status === 'active').length} champ ${sim.ranked[0].name} hof ${sim.log.filter((l) => l.t === 'hof' && l.y === sim.year).length} legacy ${sim.log.filter((l) => l.t === 'legacy' && l.y === sim.year).length} deaths ${sim.st.deaths} retired ${sim.st.retired} save ${(JSON.stringify(sim).length / 1e6).toFixed(2)}MB era ${sim.eraDef().name} ap ${Math.round(sim.approval)} apMin ${Math.round(Math.min(...sim.apHist.map((x) => x[1])))} apMax ${Math.round(Math.max(...sim.apHist.map((x) => x[1])))} boss ${sim.log.filter((l) => l.t === 'boss' && l.y === sim.year).map((l) => l.res).join('/')} tourney ${sim.tourneys.length} ag ${Object.values(sim.ag).filter((a) => a.status === 'active').length}`);
 }
 console.log('log types', JSON.stringify(sim.log.reduce((m, l) => ((m[l.t] = (m[l.t] || 0) + 1), m), {})));
 console.log(`time ${Date.now() - t0}ms  news ${sim.news.length}  heroes ${sim.heroes.length}  villains ${sim.villains.length}`);
