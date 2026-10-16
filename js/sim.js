@@ -269,7 +269,8 @@
       ctx.city = pref.name + R.pick(pref.cities);
       if (v) ctx.v = V(v);
       if (o) ctx.o = O(o);
-      const intro = fill(R.pick(def.intro), ctx);
+      let intro = fill(R.pick(def.intro), ctx);
+      if (D.timePhrases && !BIG[type] && R.chance(0.35) && !/^【/.test(intro)) intro = R.pick(D.timePhrases) + intro;
 
       // 出動ヒーロー
       let count = { petty: R.chance(0.2) ? 2 : 1, rescue: R.int(1, 2), mystery: R.int(1, 2), weird: R.int(1, 2), villain: 1 + (v && (v.threat === 'A' || v.threat === 'S') ? R.int(0, 2) : R.chance(0.25) ? 1 : 0), kaiju: R.int(4, 7), disaster: R.int(4, 8), org: R.int(3, 6), raid: R.int(4, 7) }[type];
@@ -298,6 +299,7 @@
       let text = intro + fill(R.pick(def[out]), ctx);
 
       // 因縁
+      if (D.witness && R.chance(0.14)) text += R.pick(out === 'great' || out === 'win' ? D.witness.good : D.witness.bad);
       const big0 = !!BIG[type];
       text += this.onIncident(type, v, out, all, big0);
 
