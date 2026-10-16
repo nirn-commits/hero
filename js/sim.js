@@ -50,6 +50,7 @@
       this.build(opts.heroes || 340, opts.villains || 90);
       this.ensureStory();
       this.ensureVoice();
+      this.ensureDrama();
       this.agencyStats();
       if (this.ranked[0]) this.ranked[0].ms.push('top1');
     }
@@ -139,6 +140,7 @@
       this.storyDaily(m, dd);
       this.bondDaily();
       this.voiceDaily();
+      this.dramaDaily(m, dd);
       this.incidents(m);
       this.heroEvents();
       this.villainEvents();
@@ -150,7 +152,7 @@
 
       this.computeRanks();
       if (dow === 1) this.weekly();
-      if (dd === 1 && this.day > 0) { this.monthly(m); this.storyMonthly(m); }
+      if (dd === 1 && this.day > 0) { this.monthly(m); this.storyMonthly(m); this.dramaMonthly(m); }
       if (m === 6 && dd === 30) this.halfYear();
       if (this.day === G.daysInYear(this.year) - 1) this.yearEnd();
       else this.day++;
@@ -235,6 +237,7 @@
     }
 
     incident(type, extra = {}) {
+      this.lastIncident = null;
       const def = D.inc[type];
       this.st.inc[type] = (this.st.inc[type] || 0) + 1;
       let pref = extra.pref || this.pickPref();
@@ -272,9 +275,11 @@
       ctx.city = pref.name + R.pick(pref.cities);
       if (v) ctx.v = V(v);
       if (o) ctx.o = O(o);
+      if (extra.diffMul) diff *= extra.diffMul;
       let intro = fill(R.pick(def.intro), ctx);
       if (D.timePhrases && !BIG[type] && R.chance(0.35) && !/^【/.test(intro)) intro = R.pick(D.timePhrases) + intro;
       if (v && v.kind === 'villain' && (type === 'villain' || type === 'org') && R.chance(0.18)) intro += `${V(v)}は「${this.vline(v, 'taunt')}」と叫んだ。`;
+      if (extra.tag) intro = extra.tag + intro;
 
       // 出動ヒーロー
       let count = { petty: R.chance(0.2) ? 2 : 1, rescue: R.int(1, 2), mystery: R.int(1, 2), weird: R.int(1, 2), villain: 1 + (v && (v.threat === 'A' || v.threat === 'S') ? R.int(0, 2) : R.chance(0.25) ? 1 : 0), kaiju: R.int(4, 7), disaster: R.int(4, 8), org: R.int(3, 6), raid: R.int(4, 7) }[type];
@@ -288,7 +293,9 @@
       // 判定
       const effs = hs.map((h) => G.eff(h, def.need) * R.f(0.8, 1.2));
       const order = hs.map((h, i) => [h, effs[i]]).sort((a, b) => b[1] - a[1]);
-      const total = order.reduce((s, x, i) => s + x[1] * (SHARE[i] || 0.2), 0);
+      let total = order.reduce((s, x, i) => s + x[1] * (SHARE[i] || 0.2), 0);
+      const vAlly = this.villainAlly(type, hs);
+      if (vAlly) total += G.eff(vAlly, def.need) * 0.7;
       const ratio = (total * R.f(0.75, 1.3)) / (diff * R.f(0.8, 1.2));
       const out = ratio >= 1.5 ? 'great' : ratio >= 1.0 ? 'win' : ratio >= 0.72 ? 'fail' : 'bad';
       this.st.out[out]++;
@@ -344,6 +351,7 @@
       }
       if (o && type === 'raid') text += this.raidOutcome(o, out, lead);
 
+      if (vAlly) text += this.allyText(vAlly, out);
       if (out === 'great' && lead.move && R.chance(big ? 0.45 : 0.12)) text += `決め手は${H(lead)}の必殺技「${lead.move}」だった。`;
       const won = out === 'great' || out === 'win';
       if (won && R.chance(big ? 0.7 : 0.3)) {
@@ -358,7 +366,7 @@
       const cat = big ? 'big' : type === 'villain' ? 'villain' : 'case';
       let imp = big ? 3 : type === 'villain' ? (v.threat === 'S' || v.threat === 'A' ? 2 : 1) : out === 'great' && diff > 70 ? 2 : 1;
       if (type === 'weird') imp = Math.max(imp, 2);
-      if (this.pendingSaga) imp = 3;
+      if (this.pendingSaga || extra.tag) imp = 3;
       imp = this.impFor(imp, all);
       if (type === 'disaster' || type === 'kaiju') text = `【${D.bigHeadlines[type]}】` + text;
       this.post(cat, imp, text, { h: all, v: v ? [v] : [], o });
@@ -366,6 +374,9 @@
       if (this.pendingKaiju) { this.logRec('kaiju', this.pendingKaiju); this.pendingKaiju = null; }
       if (this.pendingOrgDown) { this.logRec('org', { o: this.pendingOrgDown, h: lead.id }); this.pendingOrgDown = null; }
 
+      this.afterVAlly();
+      this.afterIncident(type, out, all, lead);
+      this.lastIncident = { out, lead: lead.id };
       for (const h of deaths) this.die(h, v);
       for (const h of all) h.busy = true;
     }
@@ -893,6 +904,7 @@
         this.post('rank', 3, `【ランキング】ヒーローランキングの首位が交代。${H(top)}が${H(prevTop)}を抜いて1位に浮上した。`, { h: [top, prevTop] });
       }
       this.storyWeekly();
+      this.dramaWeekly();
       const jumpers = this.ranked.filter((h) => h.rank <= 10 && h.weekRank !== null && h.weekRank > 10);
       if (jumpers.length && this.day > 0) this.post('rank', 2, `【ランキング】${G.joinNames(jumpers.map(H))}がトップ10入りを果たした。`, { h: jumpers });
       for (const h of this.heroes) {
@@ -954,6 +966,7 @@
       this.awards[this.awards.length - 1].approval = Math.round(this.approval);
       this.awards[this.awards.length - 1].era = this.eraDef().name;
       this.post('rank', 3, `【${this.year}年 ヒーロー年間表彰】${t}。そして年間ランキング1位に輝いたのは${H(this.ranked[0])}だった。${H(this.ranked[0])}は「${this.line(this.ranked[0], 'award')}」と語った。`, { h: aw.map((a) => this.heroes[a.id]) });
+      this.dramaYearEnd();
       this.storyYearEnd();
       this.ended = true;
     }
@@ -1035,6 +1048,7 @@
       s.computeRanks();
       s.ensureStory();
       s.ensureVoice();
+      s.ensureDrama();
       return s;
     }
   }

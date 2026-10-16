@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-for (const f of ['core', 'data_names', 'data_world', 'data_powers', 'data_people', 'data_events', 'data_story', 'data_more', 'data_more2', 'data_bond', 'data_voice', 'data_voice2', 'generator', 'sim', 'story', 'bond', 'voice']) {
+for (const f of ['core', 'data_names', 'data_world', 'data_powers', 'data_people', 'data_events', 'data_story', 'data_more', 'data_more2', 'data_bond', 'data_voice', 'data_voice2', 'data_drama', 'generator', 'sim', 'story', 'bond', 'voice', 'drama']) {
   vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'js', f + '.js'), 'utf8'), { filename: f + '.js' });
 }
 const G = globalThis.HG;
