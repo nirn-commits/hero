@@ -24,6 +24,12 @@
       this.ag = {};
       for (const a of D.agencies) if (a.type !== 'フリー') this.ag[a.name] = { name: a.name, region: a.region, type: a.type, status: 'active', founded: this.startYear, power: 0, members: 0, rank: null, prevRank: null };
     }
+    for (const x of this.heroes.concat(this.villains)) {
+      const fixed = G.normalizeGen(x.name);
+      if (fixed !== x.name) { this.usedNames.add(fixed); x.name = fixed; }
+      if (x.oldNames) x.oldNames = x.oldNames.map(G.normalizeGen);
+    }
+    for (const h of this.heroes) if (!h.blood) Gen.profile(h);
     for (const h of this.heroes) { if (!h.ms) h.ms = []; if (h.t100 === undefined) h.t100 = 0; if (!h.buzz) h.buzz = 0; }
   };
 
@@ -50,6 +56,12 @@
         top.forEach((h) => (h.fame += 10));
         this.post('world', 3, `ヒーローへの支持率が${Math.round(this.approval)}%に達し、過去最高水準となった。各地で感謝のイベントが開かれている。`);
         this.logRec('policy', { kind: '支持率最高', ap: Math.round(this.approval) });
+      }
+    }
+    for (const h of this.ranked.slice(0, 30)) {
+      if (h.birthday && h.birthday[0] === m && h.birthday[1] === dd && typeof h.age === 'number') {
+        h.fame += 5;
+        this.post('media', 1, fill(`今日は${H(h)}（${h.age}歳）の誕生日。[ファンから大量の${h.food}が届いたという。|SNSには祝福のメッセージがあふれた。|事務所でささやかなお祝い会が開かれた。]`), { h: [h] });
       }
     }
     if (m === 10 && dd === 1) this.tourneyStart();
@@ -275,7 +287,8 @@
       for (const k of R.wsample(['pow', 'tec', 'spd', 'int', 'men'], 2, () => 1)) a.stats[k] = Math.min(99, a.stats[k] + R.int(4, 8));
       if (a.power.el === m.power.el || R.chance(0.3)) a.tierBonus = Math.min(a.tierBonus + 1, 6 - a.power.tier);
       let text = `${m.status === 'dead' ? '殉職した' : '引退した'}師匠${H(m)}の技を、弟子の${H(a)}が受け継いだ。`;
-      const second = '二代目' + m.name;
+      let second = G.succName(m.name);
+      while (this.usedNames.has(second)) second = G.succName(second);
       if (!this.usedNames.has(second) && R.chance(0.4)) {
         a.oldNames.push(a.name);
         a.name = second;
@@ -486,6 +499,17 @@
       h.t100 = h.rank !== null && h.rank <= 100 ? h.t100 + 1 : 0;
       if ([5, 10, 15, 20].includes(h.t100)) this.milestone(h, 'streak' + h.t100, h.t100);
     }
+    const champ = this.ranked[0];
+    if (champ) {
+      const n = champ.titles.filter((t) => t.title === '年間ランキング1位').length;
+      const newEp = n >= 3 ? '永世王者' : n >= 2 ? '絶対王者' : null;
+      if (newEp && champ.epithet !== newEp) {
+        champ.epithet = newEp;
+        this.post('rank', 3, `年間1位${n}回目の${H(champ)}は、以後「${newEp}」と呼ばれることになった。`, { h: [champ] });
+      }
+    }
+    const tw = this.tourneys.length && this.tourneys[this.tourneys.length - 1].y === this.year ? this.heroes[this.tourneys[this.tourneys.length - 1].champ] : null;
+    if (tw && tw.titles.filter((t) => t.title === '全国ヒーロー大会優勝').length === 2 && tw.epithet !== '永世王者' && tw.epithet !== '絶対王者') tw.epithet = '大会の覇者';
     const age = this.year - this.startYear + 1;
     if (age % 10 === 0) {
       const c = this.buildChronicle(this.year - 9, this.year);

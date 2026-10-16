@@ -30,7 +30,7 @@
   let skipping = false;
   let ticks = 0;
   let countdown = null;
-  const ui = load({ speed: 2, tab: 'dash', cats: Object.keys(CAT), autoYear: true, recType: 'death', mapMetric: 'inc' });
+  const ui = load({ speed: 2, tab: 'dash', cats: Object.keys(CAT), autoYear: true, recType: 'death', mapMetric: 'inc', size: 'm' });
   ui.favs = new Set(); ui.favOnly = false;
   ui.rankLimit = 50; ui.rosterLimit = 60; ui.vLimit = 60; ui.recLimit = 80; ui.recYear = 'all'; ui.pref = null;
 
@@ -42,7 +42,7 @@
     return def;
   }
   function save() {
-    try { localStorage.setItem('hero-ui', JSON.stringify({ speed: ui.speed, tab: ui.tab, cats: ui.cats, autoYear: ui.autoYear, recType: ui.recType, mapMetric: ui.mapMetric })); } catch (e) { /* 無視 */ }
+    try { localStorage.setItem('hero-ui', JSON.stringify({ speed: ui.speed, tab: ui.tab, cats: ui.cats, autoYear: ui.autoYear, recType: ui.recType, mapMetric: ui.mapMetric, size: ui.size })); } catch (e) { /* 無視 */ }
   }
 
   // ---------- 世界の保存（IndexedDB） ----------
@@ -529,7 +529,7 @@
     const podium = list.slice(0, 3).map((h) => `<div class="pod p${h.rank}"><div class="pod-rk">${h.rank}<small>位</small></div>${emblem(h, true)}<div class="pod-name">${link('h', h)}${favBtn(h)}</div><div class="pod-meta">${esc(h.power.name)}・${esc(shortPref(h.pref))}</div><div class="pod-sc">${num(score(h))}<span>${moveHTML(h)}</span></div>${statusChip(h)}</div>`).join('');
     $('#pane-rank').innerHTML = `<h2>ヒーローランキング<small>現役${live}名・矢印は先週比</small></h2>
       <div class="podium">${podium}</div>
-      <table class="rk-table"><tbody>${list.slice(3).map((h) => heroRow(h, h.rank, num(score(h)), (score(h) / top) * 100)).join('')}</tbody></table>
+      <table class="rk-table"><thead><tr><th>順位</th><th>先週比</th><th>ヒーロー</th><th>ポイント</th></tr></thead><tbody>${list.slice(3).map((h) => heroRow(h, h.rank, num(score(h)), (score(h) / top) * 100)).join('')}</tbody></table>
       ${ui.rankLimit < live ? `<button type="button" class="more" data-more="rank">さらに50名を表示</button>` : ''}`;
   }
 
@@ -646,7 +646,7 @@
     const right = (h) => (sort === 'fame' ? '人気' + num(h.fame) : sort === 'captures' ? '検挙' + h.rec.captures : sort === 'scandals' ? '炎上' + h.rec.scandals : sort === 'age' ? h.age + '歳' : num(score(h)));
     const shown = list.slice(0, ui.rosterLimit);
     $('#rosterList').innerHTML = list.length
-      ? `<table class="rk-table"><tbody>${shown.map((h) => heroRow(h, h.rank ?? '–', right(h))).join('')}</tbody></table>
+      ? `<table class="rk-table"><thead><tr><th>順位</th><th>先週比</th><th>ヒーロー</th><th>${{ fame: '人気', captures: '検挙', scandals: '炎上', age: '年齢' }[sort] || 'ポイント'}</th></tr></thead><tbody>${shown.map((h) => heroRow(h, h.rank ?? '–', right(h))).join('')}</tbody></table>
         ${list.length > shown.length ? `<button type="button" class="more" data-more="roster">さらに表示（残り${list.length - shown.length}名）</button>` : ''}`
       : '<p class="empty">条件に合うヒーローはいません。</p>';
   }
@@ -658,7 +658,7 @@
     list.sort((a, b) => tw[b.threat] - tw[a.threat] || b.notoriety - a.notoriety);
     const shown = list.slice(0, ui.vLimit);
     $('#villainList').innerHTML = `<h2>ヴィラン${f === 'kaiju' ? '・怪獣' : ''}<small>${list.length}件</small></h2>` + (list.length
-      ? `<table class="rk-table"><tbody>${shown.map((v) => `<tr><td class="rk"><span class="threat t${v.threat}">${v.threat}</span></td><td class="mv">${esc(VSTATUS[v.status] || '')}</td><td class="who">${link('v', v)}<small>${esc(v.power.name)}${v.org !== null ? '・' + esc(sim.orgs[v.org].name) + (v.orgRank === 'boss' ? '首領' : v.orgRank === 'exec' ? '幹部' : '') : ''}${v.nemesis !== null ? '・宿敵 ' + esc(sim.heroes[v.nemesis].name) : ''}</small></td><td class="sc">${v.kind === 'kaiju' ? '' : '悪名' + v.notoriety}</td></tr>`).join('')}</tbody></table>
+      ? `<table class="rk-table"><thead><tr><th>危険度</th><th>状態</th><th>ヴィラン</th><th>悪名</th></tr></thead><tbody>${shown.map((v) => `<tr><td class="rk"><span class="threat t${v.threat}">${v.threat}</span></td><td class="mv">${esc(VSTATUS[v.status] || '')}</td><td class="who">${link('v', v)}<small>${esc(v.power.name)}${v.org !== null ? '・' + esc(sim.orgs[v.org].name) + (v.orgRank === 'boss' ? '首領' : v.orgRank === 'exec' ? '幹部' : '') : ''}${v.nemesis !== null ? '・宿敵 ' + esc(sim.heroes[v.nemesis].name) : ''}</small></td><td class="sc">${v.kind === 'kaiju' ? '' : '悪名' + v.notoriety}</td></tr>`).join('')}</tbody></table>
         ${list.length > shown.length ? `<button type="button" class="more" data-more="villain">さらに表示</button>` : ''}`
       : '<p class="empty">該当するヴィランはいません。</p>');
   }
@@ -679,7 +679,7 @@
     const agMove = (a) => (a.prevRank === null || a.prevRank === undefined ? '<span class="new">NEW</span>' : a.prevRank > a.rank ? `<span class="up">▲${a.prevRank - a.rank}</span>` : a.prevRank < a.rank ? `<span class="down">▼${a.rank - a.prevRank}</span>` : '<span class="same">―</span>');
     const agLog = sim.log.filter((l) => l.t === 'agency').slice(-5).reverse();
     $('#pane-org').innerHTML = `<h2>事務所の勢力ランキング<small>所属ヒーローのポイント合計・矢印は前月比</small></h2>
-      <table class="rk-table"><tbody>${ags.slice(0, 15).map((a) => `<tr><td class="rk">${a.rank}</td><td class="mv">${agMove(a)}</td><td class="who"><b>${esc(a.name)}</b><span class="st">${esc(a.type)}</span>${a.founder !== undefined ? `<span class="st gold">${esc(sim.heroes[a.founder].name)}が設立</span>` : ''}<small>${a.region || '全国'}・所属${a.members}名</small><i class="bar"><b style="width:${(a.power / topP) * 100}%"></b></i></td><td class="sc">${num(a.power)}</td></tr>`).join('')}</tbody></table>
+      <table class="rk-table"><thead><tr><th>順位</th><th>前月比</th><th>事務所</th><th>勢力</th></tr></thead><tbody>${ags.slice(0, 15).map((a) => `<tr><td class="rk">${a.rank}</td><td class="mv">${agMove(a)}</td><td class="who"><b>${esc(a.name)}</b><span class="st">${esc(a.type)}</span>${a.founder !== undefined ? `<span class="st gold">${esc(sim.heroes[a.founder].name)}が設立</span>` : ''}<small>${a.region || '全国'}・所属${a.members}名</small><i class="bar"><b style="width:${(a.power / topP) * 100}%"></b></i></td><td class="sc">${num(a.power)}</td></tr>`).join('')}</tbody></table>
       ${agLog.length ? `<ul class="list ag-log">${agLog.map((l) => `<li><span class="k">${l.y}年${monthDay(l)}</span>${esc(l.kind)}：${esc(l.a)}${l.h !== undefined ? '（' + link('h', sim.heroes[l.h]) + '）' : ''}</li>`).join('')}</ul>` : ''}
       <div class="sec"><h2>活動中のヴィラン組織<small>${act.length}組織・捜査進捗が100に達すると一斉摘発</small></h2>
       <div class="cards">${act.map(orgCard).join('') || '<p class="empty">現在、活動中の組織はありません。</p>'}</div></div>
@@ -730,6 +730,7 @@
   }
   const stars = (t) => '★'.repeat(Math.min(5, t)) + '☆'.repeat(Math.max(0, 5 - t)) + (t > 5 ? '+' : '');
 
+  function yen(man) { return man >= 10000 ? `約${(man / 10000).toFixed(1)}億円` : `約${num(Math.round(man / 10) * 10)}万円`; }
   function showHero(h) {
     const rel = [];
     if (h.team !== null) rel.push(['チーム', link('t', sim.teams[h.team])]);
@@ -749,29 +750,38 @@
     const r = h.rec;
     const tier = h.power.tier + h.tierBonus;
     const yrs = h.yearRanks || [];
+    const dl = (rows) => `<dl class="dl">${rows.filter((x) => x[1] !== undefined && x[1] !== null && x[1] !== '').map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>`;
+    const income = h.rank !== null ? yen(score(h) * 6 + h.fame * 4 + 300) : '―';
     openModal(`
-      <div class="pf-head">${emblem(h, true)}<h2 id="modalTitle">${esc(h.name)}</h2>${favBtn(h)}${h.rank ? `<span class="rkbig">${h.rank}位</span>` : ''}${statusChip(h)}</div>
-      <p class="pf-sub">本名 ${h.masked ? '非公開' : esc(h.real)}・${esc(h.gender)}・${h.age}歳・${esc(h.pref)}${esc(h.city)}・${esc(h.agency)}・活動${h.career}年目${h.bestRank ? '・最高' + h.bestRank + '位' : ''}${h.oldNames.length ? '・旧名 ' + h.oldNames.map(esc).join('、') : ''}</p>
+      <div class="pf-head">${emblem(h, true)}<div class="pf-title"><h2 id="modalTitle">${esc(h.name)}</h2><p class="pf-epi">${h.epithet ? `「${esc(h.epithet)}」` : ''}${h.nickname ? `<span>愛称 ${esc(h.nickname)}</span>` : ''}</p></div>${h.rank ? `<span class="rkbig">${h.rank}<small>位</small></span>` : ''}${favBtn(h)}${statusChip(h)}</div>
+      ${h.catch ? `<p class="catch">「${esc(h.catch)}」</p>` : ''}
       ${h.titles.length ? `<div class="titles">${h.titles.map((t) => `<span>${t.y} ${esc(t.title)}</span>`).join('')}</div>` : ''}
-      <div class="pf-grid">
-        <div>
+      <div class="pf-cards">
+        <section class="pcard"><h4>基本データ</h4>${dl([
+          ['本名', h.masked ? '非公開' : esc(h.real)], ['性別', esc(h.gender)], ['年齢', typeof h.age === 'number' ? h.age + '歳' : esc(h.age)],
+          ['誕生日', h.birthday ? `${h.birthday[0]}月${h.birthday[1]}日` : ''], ['血液型', h.blood ? h.blood + '型' : ''], ['身長・体重', h.height ? `${h.height}cm・${h.weight}kg` : ''],
+          ['出身', esc(h.pref + h.city)], ['出身校', esc(h.school || '')], ['前職', esc(h.job)], ['家族', esc(h.family || '')],
+          ['所属', esc(h.agency)], ['スポンサー', esc(h.sponsor || '')], ['活動', `${h.career}年目（${h.debutYear}年デビュー）`], ['最高順位', h.bestRank ? h.bestRank + '位' : '―'], ['推定年収', income],
+        ])}</section>
+        <section class="pcard"><h4>能力</h4>
           <div class="power"><b>${esc(h.power.name)}</b><span class="stars" title="能力の格">${stars(tier)}</span><p>${esc(h.power.desc)}（${esc(D.elemLabel[h.power.el] || '')}系）</p></div>
-          <h4>経歴</h4>
-          <p class="bio">${esc(h.job)}。${esc(h.origin)}。${esc(h.motive)}ヒーローになった。${esc(h.quirk)}。</p>
-          <h4>性格</h4><div class="traits">${h.traits.map((t) => `<span>${esc(t)}</span>`).join('')}</div>
-          ${rel.length ? `<h4>関係</h4><dl class="dl">${rel.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>` : ''}
-        </div>
-        <div>
-          <h4>能力値</h4>${radar(h.stats)}
-          <h4>通算成績</h4>
+          ${dl([['必殺技', h.move ? `<b>${esc(h.move)}</b>` : ''], ['代償', esc(h.cost || '')], ['弱点', esc(h.weak || '')]])}
+          ${radar(h.stats)}
+        </section>
+        <section class="pcard"><h4>人物</h4>
+          <div class="traits">${h.traits.map((t) => `<span>${esc(t)}</span>`).join('')}</div>
+          ${dl([['座右の銘', h.motto ? `「${esc(h.motto)}」` : ''], ['好物', esc(h.food || '')], ['苦手な食べ物', esc(h.dislike || '')], ['特技', esc(h.skill || '')], ['素顔', esc(h.quirk)], ['コスチューム', esc(h.costume || '')]])}
+          <h5>ヒーローになるまで</h5><p class="bio">${esc(h.origin)}。${esc(h.motive)}ヒーローになった。</p>
+        </section>
+        <section class="pcard"><h4>成績</h4>
           <div class="recs"><div><b>${r.cases}</b><span>出動</span></div><div><b>${r.captures}</b><span>検挙</span></div><div><b>${r.rescues}</b><span>救助</span></div><div><b>${r.scandals}</b><span>炎上</span></div></div>
-        </div>
+          ${dl([['ポイント', num(h.points)], ['人気', num(h.fame)], ['怪獣撃破', r.kaiju + '体'], ['メディア出演', r.media + '回']])}
+          <h5>今年の順位推移</h5>${spark(h.rankHist)}
+          <h5>年度別の最終順位</h5>${yrs.length ? `<ol class="yrs">${yrs.slice().reverse().map(([y, rk]) => `<li><span>${y}</span><b>${rk}位</b></li>`).join('')}</ol>` : '<p class="mapnote">年末に記録されます。</p>'}
+        </section>
+        ${rel.length ? `<section class="pcard wide"><h4>人間関係</h4>${dl(rel)}</section>` : ''}
       </div>
-      <div class="pf-grid">
-        <div><h4>今年の順位推移・ポイント ${num(h.points)}・人気 ${num(h.fame)}</h4>${spark(h.rankHist)}</div>
-        <div><h4>年度別の最終順位</h4>${yrs.length ? `<ol class="yrs">${yrs.slice().reverse().map(([y, rk]) => `<li><span>${y}</span><b>${rk}位</b></li>`).join('')}</ol>` : '<p class="empty">年末に記録されます。</p>'}</div>
-      </div>
-      <h4>活動記録</h4>${histList(h)}`);
+      <h4 class="sect">活動記録</h4>${histList(h)}`);
   }
 
   function showVillain(v) {
@@ -920,6 +930,7 @@
       if (id === 'seedGo') { const s = $('#seedInput').value.trim(); closeModal(); newWorld(s || randomSeed()); return; }
       if (id === 'newBtn' || e.target.dataset.act === 'new') { showNewWorld(); return; }
       if (id === 'skipBtn') skipToEnd();
+      if (id === 'sizeBtn') { ui.size = ui.size === 'm' ? 'l' : ui.size === 'l' ? 'xl' : 'm'; save(); applySize(); }
     });
     document.addEventListener('change', (e) => {
       if (e.target.id === 'autoYear') { ui.autoYear = e.target.checked; save(); if (!ui.autoYear) cancelCountdown(); }
@@ -938,7 +949,13 @@
     window.addEventListener('pagehide', saveWorld);
   }
 
+  const SIZES = { m: '標準', l: '大', xl: '特大' };
+  function applySize() {
+    document.documentElement.dataset.size = ui.size;
+    $('#sizeBtn').textContent = '文字 ' + SIZES[ui.size];
+  }
   async function start() {
+    applySize();
     bind();
     renderFilters();
     if (ui.tab === 'almanac') ui.tab = 'dash';

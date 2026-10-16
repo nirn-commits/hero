@@ -39,7 +39,8 @@
       const n = gen();
       if (!sim.usedNames.has(n)) { sim.usedNames.add(n); return n; }
       if (i > 20) {
-        const n2 = R.pick(['二代目', '三代目', 'ネオ', '真・']) + n;
+        let n2 = G.succName(n);
+        for (let k = 0; k < 20 && sim.usedNames.has(n2); k++) n2 = G.succName(n2);
         if (!sim.usedNames.has(n2)) { sim.usedNames.add(n2); return n2; }
       }
     }
@@ -116,7 +117,48 @@
     } else {
       h.fame = Math.round(R.f(0, 25) + stats.cha * 0.2);
     }
+    profile(h);
     sim.heroes.push(h);
+    return h;
+  }
+
+  // 詳しいプロフィール
+  function profile(h) {
+    const P = D.profile;
+    const ew = D.elemWords[h.power.el] || D.elemWords.odd;
+    const g = h.gender === '男' ? 'M' : h.gender === '女' ? 'F' : 'N';
+    const age = typeof h.age === 'number' ? h.age : 30;
+    h.birthday = [R.int(1, 12), R.int(1, 28)];
+    h.blood = R.wpick(['A', 'O', 'B', 'AB'], (b) => ({ A: 4, O: 3, B: 2, AB: 1 })[b]);
+    h.height = Math.round(clamp(R.gauss(g === 'M' ? 172 : g === 'F' ? 159 : 166, 7), 138, 205));
+    h.weight = Math.round(clamp(R.gauss(21.5 + (h.stats.pow - 50) / 25, 2.2), 16, 34) * (h.height / 100) ** 2);
+    h.school = R.pick(P.schools);
+    h.food = R.pick(P.foods);
+    do { h.dislike = R.pick(P.dislikes); } while (h.dislike === h.food);
+    h.motto = R.pick(P.mottos);
+    h.catch = R.pick(P.catch);
+    h.color = R.pick(P.colors);
+    let c2 = R.pick(P.colors);
+    if (c2 === h.color) c2 = '白';
+    h.costume = `${h.color}と${c2}の${R.pick(P.bases)}に${R.pick(P.accs)}。胸には「${(D.elemLabel[h.power.el] || '特殊')}」を表す紋章`;
+    h.family = R.pick(age < 22 ? P.family.young : age < 55 ? P.family.adult : P.family.old);
+    const wk = P.weakByEl[h.power.el] || P.weakByEl.odd;
+    h.weak = R.chance(0.65) ? R.pick(wk) : R.pick(P.weakGen);
+    h.cost = R.pick(P.costs);
+    const p = R.f();
+    h.move = p < 0.3 ? `${R.pick(P.moveA)}・${R.pick(ew.k)}${R.pick(P.moveB)}`
+      : p < 0.55 ? R.pick(ew.j) + R.pick(P.moveJ)
+        : p < 0.75 ? `${h.name.replace(/^.*代目/, '')}・${R.pick(P.moveB)}`
+          : p < 0.9 ? `奥義・${R.pick(ew.j)}${R.pick(P.moveJ)}` : `${R.pick(ew.k)}・${R.pick(P.moveB)}・${R.pick(['MAX', 'ゼロ', 'ファイナル', '改', '真'])}`;
+    const nouns = P.nickNoun.N.concat(g === 'N' ? [] : P.nickNoun[g].filter((n) => (age < 40 ? !['親父', 'お母さん'].includes(n) : n !== '若大将')));
+    h.epithet = `${P.regionNick[h.pref] || '日本'}の${R.pick(nouns)}`;
+    const core = h.name.replace(/^.*代目/, '').replace(/[・\s]/g, '');
+    const kata = /^[ァ-ヴー]/.test(core);
+    let nk = core.length <= 3 ? core : core.slice(0, kata ? 3 : 2);
+    if (/[ーッャュョァィゥェォ]$/.test(nk)) nk = nk.slice(0, -1);
+    h.nickname = nk + R.pick(P.nickSfx);
+    h.sponsor = R.pick(P.sponsors);
+    h.skill = R.pick(P.skills);
     return h;
   }
 
@@ -201,5 +243,5 @@
     return R.pick(D.teamKanji) + R.pick(D.teamWords);
   }
 
-  G.Gen = { hero, villain, kaiju, org, join, teamName, heroNameRaw, villainNameRaw, uniq, pickPrefObj, threatOf, traitObj, newRec };
+  G.Gen = { profile, hero, villain, kaiju, org, join, teamName, heroNameRaw, villainNameRaw, uniq, pickPrefObj, threatOf, traitObj, newRec };
 })(globalThis.HG = globalThis.HG || {});

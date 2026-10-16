@@ -338,6 +338,7 @@
       }
       if (o && type === 'raid') text += this.raidOutcome(o, out, lead);
 
+      if (out === 'great' && lead.move && R.chance(big ? 0.45 : 0.12)) text += `決め手は${H(lead)}の必殺技「${lead.move}」だった。`;
       if ((out === 'great' || (out === 'win' && R.chance(0.4))) && R.chance(big ? 0.6 : 0.18)) text += all.length >= 2 && R.chance(0.35) ? this.duoQuote(lead, all[1]) : `${H(lead)}は${this.quote(lead, true)}と語った。`;
       else if (out === 'bad' && R.chance(0.25) && !deaths.includes(lead)) text += `${H(lead)}は${this.quote(lead, false)}と悔しさをにじませた。`;
 
@@ -959,7 +960,8 @@
         const h = Gen.hero(this, { rookie: true, power, pref: this.prefObj(p.pref), age: R.int(16, 24), talent: 60 });
         h.ms = []; h.t100 = 0; h.buzz = 0;
         this.fixAgency(h);
-        const second = '二代目' + p.name;
+        let second = G.succName(p.name);
+        while (this.usedNames.has(second)) second = G.succName(second);
         if (!this.usedNames.has(second) && R.chance(0.6)) { this.usedNames.delete(h.name); h.name = second; this.usedNames.add(second); }
         const sur = String(p.real).split(' ')[0];
         if (p.real !== '不明' && String(p.real).includes(' ')) h.real = sur + ' ' + String(h.real).split(' ').pop();

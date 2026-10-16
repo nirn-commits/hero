@@ -88,6 +88,38 @@
     return tokens.slice(0, 3).join('、') + `ら${tokens.length}名`;
   }
 
+  // 「二代目」「三代目」…の扱い
+  const KD = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+  function toKanji(n) {
+    if (n < 10) return KD[n];
+    const t = Math.floor(n / 10), o = n % 10;
+    return (t === 1 ? '' : KD[t]) + '十' + KD[o];
+  }
+  function fromKanji(s) {
+    if (s === '初') return 1;
+    const i = s.indexOf('十');
+    if (i < 0) return KD.indexOf(s);
+    return (i === 0 ? 1 : KD.indexOf(s.slice(0, i))) * 10 + (s.slice(i + 1) ? KD.indexOf(s.slice(i + 1)) : 0);
+  }
+  // 名前を「元の名前」と「何代目か」に分ける。重なった「二代目二代目」も正しく数える
+  function splitGen(name) {
+    const gens = [];
+    let base = name;
+    let m;
+    while ((m = base.match(/^([初一二三四五六七八九十]+)代目/))) { gens.push(fromKanji(m[1])); base = base.slice(m[0].length); }
+    if (!gens.length || !base) return { base: name, gen: 1 };
+    let gen = gens[gens.length - 1];
+    for (let i = gens.length - 2; i >= 0; i--) gen += gens[i] - 1;
+    return { base, gen };
+  }
+  const genName = (base, gen) => (gen <= 1 ? base : toKanji(gen) + '代目' + base);
+  // 次の代の名前（二代目○○ → 三代目○○）
+  function succName(name) { const g = splitGen(name); return genName(g.base, g.gen + 1); }
+  function normalizeGen(name) { const g = splitGen(name); return genName(g.base, g.gen); }
+
+  G.splitGen = splitGen;
+  G.succName = succName;
+  G.normalizeGen = normalizeGen;
   G.R = R;
   G.fill = fill;
   G.clamp = clamp;
