@@ -23,7 +23,7 @@
     h.comebacks = (h.comebacks || 0) + 1;
     h.fame += 80;
     h.points += 200;
-    this.post('life', 3, fill(R.pick(D.comeback), { h: H(h), years: Math.max(1, years) }), { h: [h] });
+    this.post('life', 3, fill(R.pick(D.comeback), { h: H(h), years: Math.max(1, years) }) + `${H(h)}は「${this.line(h, 'comeback')}」と語った。`, { h: [h] });
     this.logRec('comeback', { h: h.id, years, after: h.after || '' });
   };
 

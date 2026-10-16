@@ -186,7 +186,8 @@
       for (const h of all) { h.fame += 80 * this.mod('fame'); h.points += 150; h.yrec.pts += 150; }
       lead.fame += 120;
       this.approve(15);
-      text += `${H(lead)}は「${R.pick(['みんなで勝ち取った勝利です', 'これで、ようやく眠れる', '倒れた仲間たちに報告したい'])}」と語り、${H(all[1])}は「${fill(R.pick(D.allyLines), { p: H(lead) })}」と振り返った。`;
+      text += `${H(lead)}は「${this.line(lead, 'win')}」と語り、${H(all[1])}は「${this.line(all[1], 'ally', { p: H(lead) })}」と振り返った。`;
+      text += `連行される${V(v)}は「${this.vline(v, 'caught')}」と言い残した。`;
       this.boss = null;
       this.bossNext = this.year + R.int(4, 6);
     } else {
@@ -246,8 +247,8 @@
     for (const k of ['pendingSaga', 'pendingSagaDeath', 'pendingSagaRetire']) if (this[k]) { this.logRec('saga', this[k]); this[k] = null; }
   };
 
-  P.duoQuote = function (lead, second) {
-    return `${H(lead)}は${this.quote(lead, true)}と語り、${H(second)}は「${fill(R.pick(D.allyLines), { p: H(lead) })}」と振り返った。`;
+  P.duoQuote = function (lead, second, sit) {
+    return `${H(lead)}は「${this.line(lead, sit || 'win')}」と語り、${H(second)}は「${this.line(second, 'ally', { p: H(lead) })}」と振り返った。`;
   };
   P.tribute = function (h, kind) {
     const pick = (ids) => ids.map((id) => this.heroes[id]).find((x) => x && x.status === 'active');
@@ -256,7 +257,7 @@
     const rv = h.rival !== null ? pick([h.rival]) : null;
     const who = ap ? ['弟子の', ap] : rv ? ['ライバルの', rv] : sp ? ['伴侶の', sp] : null;
     if (!who) return '';
-    const line = fill(R.pick(kind === 'death' ? D.tributeDeath : D.tributeRetire), { p: H(h) });
+    const line = kind === 'death' ? this.line(who[1], 'tribute', { p: H(h) }) : fill(R.pick(D.tributeRetire), { p: H(h) });
     return `${who[0]}${H(who[1])}は「${line}」と語った。`;
   };
 
@@ -314,7 +315,7 @@
       const r = this.heroes[h.rival];
       if (r.rank === null || h.weekRank === null || r.weekRank === null) continue;
       if (h.weekRank < r.weekRank && h.rank > r.rank && r.rank <= 40) {
-        this.post('life', this.impFor(1, [h, r]), `${H(r)}がライバルの${H(h)}を抜いて${r.rank}位に浮上した。抜かれた${H(h)}は「${fill(R.pick(D.rivalLines), { p: H(r) })}」とコメントした。`, { h: [r, h] });
+        this.post('life', this.impFor(1, [h, r]), `${H(r)}がライバルの${H(h)}を抜いて${r.rank}位に浮上した。抜かれた${H(h)}は「${this.line(h, 'rival', { p: H(r) })}」とコメントした。`, { h: [r, h] });
         break;
       }
     }
@@ -480,7 +481,7 @@
       w.points += 120;
       w.yrec.pts += 120;
       l.fame += 30;
-      this.post('rank', 3, `【全国大会決勝】${H(w)}が${m.move === '不戦勝' ? '不戦勝で' : m.move}${H(l)}を破り、第${t.no}回全国ヒーロー大会を制した。${H(w)}は${this.quote(w, true)}と語り、準優勝の${H(l)}は「${fill(R.pick(D.rivalLines), { p: H(w) })}」と雪辱を誓った。`, { h: [w, l] });
+      this.post('rank', 3, `【全国大会決勝】${H(w)}が${m.move === '不戦勝' ? '不戦勝で' : m.move}${H(l)}を破り、第${t.no}回全国ヒーロー大会を制した。${H(w)}は「${this.line(w, 'tourney')}」と語り、準優勝の${H(l)}は「${this.line(l, 'rival', { p: H(w) })}」と雪辱を誓った。`, { h: [w, l] });
       this.logRec('tourney', { h: w.id, runner: l.id, no: t.no });
       return;
     }

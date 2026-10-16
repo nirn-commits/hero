@@ -49,6 +49,7 @@
       this.st = this.newStats();
       this.build(opts.heroes || 340, opts.villains || 90);
       this.ensureStory();
+      this.ensureVoice();
       this.agencyStats();
       if (this.ranked[0]) this.ranked[0].ms.push('top1');
     }
@@ -137,6 +138,7 @@
       this.calendar(m, dd);
       this.storyDaily(m, dd);
       this.bondDaily();
+      this.voiceDaily();
       this.incidents(m);
       this.heroEvents();
       this.villainEvents();
@@ -166,7 +168,7 @@
           if (reason === '謹慎' && h.stats.mor < 35 && R.chance(0.35)) { this.fall(h, '謹慎期間中に姿を消し'); continue; }
           if (reason === '負傷' || reason === '謹慎' || reason === '休業') {
             const t = reason === '負傷' ? `${H(h)}がけがから回復し、活動を再開した。` : reason === '謹慎' ? `${H(h)}が謹慎を終え、活動を再開した。[「一から出直します」と語った。|ファンの反応は賛否両論だ。|]` : `${H(h)}が休業を終え、活動に復帰した。`;
-            this.post('life', this.isTop(h, 20) ? 2 : 1, fill(t), { h: [h] });
+            this.post('life', this.isTop(h, 20) ? 2 : 1, fill(t) + (R.chance(0.35) ? `${H(h)}は「${this.line(h, 'back')}」と語った。` : ''), { h: [h] });
           }
         }
       }
@@ -212,7 +214,7 @@
       const total = R.int(800, 1500);
       list.forEach((x, i) => { x.h.fame += [80, 50, 35, 25, 20][i]; });
       const w = list[0].h;
-      this.post('rank', 3, `第${this.year - 1990}回ヒーロー総選挙の結果発表。総投票数${total}万票の頂点に立ったのは${H(w)}。2位${H(list[1].h)}、3位${H(list[2].h)}、4位${H(list[3].h)}、5位${H(list[4].h)}。${H(w)}は「${R.pick(['応援してくれた皆さんのおかげです', 'この順位に恥じない活躍をします', '信じられない……本当にありがとう！', '来年もここに立ちます'])}」と喜びを語った。`, { h: list.map((x) => x.h) });
+      this.post('rank', 3, `第${this.year - 1990}回ヒーロー総選挙の結果発表。総投票数${total}万票の頂点に立ったのは${H(w)}。2位${H(list[1].h)}、3位${H(list[2].h)}、4位${H(list[3].h)}、5位${H(list[4].h)}。${H(w)}は「${this.line(w, 'award')}」と喜びを語った。`, { h: list.map((x) => x.h) });
     }
 
     // ---------- 事件 ----------
@@ -272,6 +274,7 @@
       if (o) ctx.o = O(o);
       let intro = fill(R.pick(def.intro), ctx);
       if (D.timePhrases && !BIG[type] && R.chance(0.35) && !/^【/.test(intro)) intro = R.pick(D.timePhrases) + intro;
+      if (v && v.kind === 'villain' && (type === 'villain' || type === 'org') && R.chance(0.18)) intro += `${V(v)}は「${this.vline(v, 'taunt')}」と叫んだ。`;
 
       // 出動ヒーロー
       let count = { petty: R.chance(0.2) ? 2 : 1, rescue: R.int(1, 2), mystery: R.int(1, 2), weird: R.int(1, 2), villain: 1 + (v && (v.threat === 'A' || v.threat === 'S') ? R.int(0, 2) : R.chance(0.25) ? 1 : 0), kaiju: R.int(4, 7), disaster: R.int(4, 8), org: R.int(3, 6), raid: R.int(4, 7) }[type];
@@ -342,8 +345,15 @@
       if (o && type === 'raid') text += this.raidOutcome(o, out, lead);
 
       if (out === 'great' && lead.move && R.chance(big ? 0.45 : 0.12)) text += `決め手は${H(lead)}の必殺技「${lead.move}」だった。`;
-      if ((out === 'great' || (out === 'win' && R.chance(0.4))) && R.chance(big ? 0.6 : 0.18)) text += all.length >= 2 && R.chance(0.35) ? this.duoQuote(lead, all[1]) : `${H(lead)}は${this.quote(lead, true)}と語った。`;
-      else if (out === 'bad' && R.chance(0.25) && !deaths.includes(lead)) text += `${H(lead)}は${this.quote(lead, false)}と悔しさをにじませた。`;
+      const won = out === 'great' || out === 'win';
+      if (won && R.chance(big ? 0.7 : 0.3)) {
+        const sit = type === 'rescue' || type === 'disaster' ? 'rescue' : (type === 'villain' || type === 'org') && R.chance(0.5) ? 'capture' : 'win';
+        text += all.length >= 2 && R.chance(0.4) ? this.duoQuote(lead, all[1], sit) : `${H(lead)}は「${this.line(lead, sit)}」と語った。`;
+      } else if (!won && out === 'bad' && R.chance(0.35) && !deaths.includes(lead)) text += `${H(lead)}は「${this.line(lead, 'lose')}」と悔しさをにじませた。`;
+      if (v && v.kind === 'villain' && type === 'villain') {
+        if (won && R.chance(0.22)) text += `${V(v)}は連行される際、「${this.vline(v, 'caught')}」と言い残した。`;
+        else if (!won && R.chance(0.35)) text += `${V(v)}は「${this.vline(v, 'escape')}」と言い放った。`;
+      }
 
       const cat = big ? 'big' : type === 'villain' ? 'villain' : 'case';
       let imp = big ? 3 : type === 'villain' ? (v.threat === 'S' || v.threat === 'A' ? 2 : 1) : out === 'great' && diff > 70 ? 2 : 1;
@@ -472,11 +482,14 @@
       if (h.spouse !== null && this.heroes[h.spouse].status === 'active') {
         const s = this.heroes[h.spouse];
         s.stats.men = Math.min(99, s.stats.men + 10);
-        this.post('life', 2, `${H(s)}は伴侶である${H(h)}の死を受け、「あの人の分まで戦う」と誓った。`, { h: [s, h] });
+        this.post('life', 2, `${H(s)}は伴侶である${H(h)}の死を受け、「${this.line(s, 'tribute', { p: H(h) })}」と誓った。`, { h: [s, h] });
+        s.spouse = null;
+        s.married = false;
+        s.lateSpouse = h.id;
       }
       if (h.rival !== null) {
         const r = this.heroes[h.rival];
-        if (r.status === 'active') this.post('life', 2, `ライバルの${H(h)}を失った${H(r)}は、そのマントを形見として受け継いだ。「${fill(R.pick(D.tributeDeath), { p: H(h) })}」`, { h: [r, h] });
+        if (r.status === 'active') this.post('life', 2, `ライバルの${H(h)}を失った${H(r)}は、そのマントを形見として受け継いだ。「${this.line(r, 'tribute', { p: H(h) })}」`, { h: [r, h] });
       }
       if (v && v.kind === 'villain' && R.chance(0.6)) {
         const avenger = this.heroes.filter((x) => x.status === 'active' && x.nemesis === null && (x.rival === h.id || x.region === h.region))[0];
@@ -539,6 +552,7 @@
         } else { text += fill(R.pick(Rx.deny), { h: H(h) }); act = 'deny'; }
       }
       h.stats.mor = Math.max(0, h.stats.mor - sev * 2);
+      if ((act === 'apology' || act === 'suspend') && R.chance(0.6)) text += `${H(h)}は「${this.line(h, 'scandal')}」と述べた。`;
       this.post('scandal', Math.min(3, sev + (this.isTop(h, 30) ? 1 : 0)), text, { h: [h] });
       this.logRec('scandal', { h: h.id, sev, act, rank: h.rank });
       this.approve(-sev * 1.3);
@@ -561,7 +575,7 @@
 
     lifeEvent(h) {
       const L = D.life;
-      const type = R.wpick(Object.keys(L), (k) => ({ train: 5, awaken: 1.6, slump: 2, costume: 3, marry: h.spouse === null && h.age > 23 ? 2 : 0, baby: h.spouse !== null || h.married ? 1.5 : 0, move: 2, rename: 0.8, injury: 2, family: 1, secret: 1, hobby: 3 })[k]);
+      const type = R.wpick(Object.keys(L), (k) => ({ train: 5, awaken: 1.6, slump: 2, costume: 3, marry: h.spouse === null && !h.married && h.partner === null && h.age > 23 ? 2 : 0, baby: h.spouse !== null || h.married ? 1.5 : 0, move: 2, rename: 0.8, injury: 2, family: 1, secret: 1, hobby: 3 })[k]);
       const ctx = { h: H(h), power: `「${h.power.name}」`, quirk: h.quirk };
       let imp = 1;
       switch (type) {
@@ -569,7 +583,7 @@
         case 'awaken': { if (h.power.tier + h.tierBonus >= 6) return; h.tierBonus++; imp = 2; h.fame += 25; break; }
         case 'slump': { h.slump = R.int(30, 70); break; }
         case 'costume': { h.fame += 5; break; }
-        case 'marry': { h.married = true; h.fame += 20; break; }
+        case 'marry': { h.married = true; h.fame += 20; this.post('life', Math.max(imp, this.isTop(h, 10) ? 2 : 1), fill(R.pick(L.marry), ctx) + `「${this.line(h, 'marry')}」`, { h: [h] }); return; }
         case 'baby': { h.fame += 10; break; }
         case 'move': {
           const ag = R.pick([...this.activeAgencies(h.region), { name: 'フリーランス' }].filter((a) => a.name !== h.agency));
@@ -598,7 +612,7 @@
       h.endYear = this.year;
       this.st.retired++;
       this.leaveTeam(h);
-      const text = fill(R.pick(D.retireLines), { h: H(h), years: Math.max(1, h.career) }) + this.sagaOnRetire(h) + this.tribute(h, 'retire');
+      const text = fill(R.pick(D.retireLines), { h: H(h), years: Math.max(1, h.career) }) + (R.chance(0.7) ? `最後に「${this.line(h, 'retire')}」と語った。` : '') + this.sagaOnRetire(h) + this.tribute(h, 'retire');
       this.post('life', this.isTop(h, 50) || h.career > 20 ? 3 : 2, text, { h: [h] });
       this.logRec('retire', { h: h.id, reason: '引退', career: h.career, age: h.age, best: h.bestRank });
       this.onRetireBond(h);
@@ -635,7 +649,7 @@
       this.fixAgency(h);
       h.debutYear = this.year;
       this.st.debuts++;
-      if (!batch) this.post('life', 1, `新人ヒーロー${H(h)}が${h.pref}でデビュー。「${h.power.name}」の使い手で、${h.motive}ヒーローを志したという。`, { h: [h] });
+      if (!batch) this.post('life', 1, `新人ヒーロー${H(h)}が${h.pref}でデビュー。「${h.power.name}」の使い手で、${h.motive}ヒーローを志したという。` + (R.chance(0.6) ? `「${this.line(h, 'debut')}」` : ''), { h: [h] });
       return h;
     }
 
@@ -797,10 +811,12 @@
         if (pair.length && R.chance(0.45)) {
           const a = R.pick(pair), b = this.heroes[a.partner];
           a.partner = b.partner = null;
-          if (b.status === 'active' && R.chance(0.5)) {
+          if (b.status === 'dead') return;
+          if (b.status === 'active' && !a.married && !b.married && a.spouse === null && b.spouse === null && R.chance(0.5)) {
             a.spouse = b.id; b.spouse = a.id; a.married = b.married = true;
             a.fame += 40; b.fame += 40;
-            this.post('media', this.impFor(2, [a, b]), `交際中だった${H(a)}と${H(b)}が結婚を発表！[ヒーロー界のビッグカップル誕生に祝福の声が相次いだ。|式は二人が初めて共闘した現場の近くで挙げるという。]`, { h: [a, b] });
+            const re = a.lateSpouse !== undefined || b.lateSpouse !== undefined;
+            this.post('media', this.impFor(2, [a, b]), `交際中だった${H(a)}と${H(b)}が${re ? '再婚' : '結婚'}を発表！[ヒーロー界のビッグカップル誕生に祝福の声が相次いだ。|式は二人が初めて共闘した現場の近くで挙げるという。]${H(a)}は「${this.line(a, 'marry')}」と語り、${H(b)}も「${this.line(b, 'marry')}」と笑顔を見せた。`, { h: [a, b] });
             this.logRec('marry', { h: a.id, h2: b.id });
           } else {
             this.post('life', this.impFor(1, [a, b]), `${H(a)}と${H(b)}の破局が報じられた。${R.pick(['すれ違いの生活が原因とみられる。', '現在はよき戦友に戻ったという。', '出動先の取り合いがきっかけだったとの証言も。'])}`, { h: [a, b] });
@@ -937,7 +953,7 @@
       const t = aw.map((a) => `${a.title}は${H(this.heroes[a.id])}`).join('、');
       this.awards[this.awards.length - 1].approval = Math.round(this.approval);
       this.awards[this.awards.length - 1].era = this.eraDef().name;
-      this.post('rank', 3, `【${this.year}年 ヒーロー年間表彰】${t}。そして年間ランキング1位に輝いたのは${H(this.ranked[0])}だった。`, { h: aw.map((a) => this.heroes[a.id]) });
+      this.post('rank', 3, `【${this.year}年 ヒーロー年間表彰】${t}。そして年間ランキング1位に輝いたのは${H(this.ranked[0])}だった。${H(this.ranked[0])}は「${this.line(this.ranked[0], 'award')}」と語った。`, { h: aw.map((a) => this.heroes[a.id]) });
       this.storyYearEnd();
       this.ended = true;
     }
@@ -1018,6 +1034,7 @@
       R.s = o.rng;
       s.computeRanks();
       s.ensureStory();
+      s.ensureVoice();
       return s;
     }
   }

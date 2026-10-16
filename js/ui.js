@@ -798,6 +798,12 @@
     const mood = h.status === 'dead' ? '今も献花が絶えない' : h.status === 'fallen' ? 'ファンの多くが離れていった' : h.fame > 600 ? '国民的な人気' : h.fame > 250 ? '全国区の人気' : h.fame > 80 ? '地元を中心に人気' : 'これからに期待';
     return `<p class="mapnote">人気の度合い：<b>${mood}</b>（人気 ${num(h.fame)}）</p><h5>支持層</h5>${bars}<h5>ファンの声</h5><ul class="voices">${voices.map((v) => `<li>${esc(v)}</li>`).join('')}</ul>`;
   }
+  const SIT = { win: '勝利', lose: '敗北', rescue: '救助', capture: '逮捕', scandal: '謝罪', retire: '引退', debut: 'デビュー', award: '受賞', marry: '結婚', comeback: '復帰', rival: 'ライバル', ally: '共闘', tribute: '追悼', back: '復帰', tourney: '全国大会', interview: '取材' };
+  function quoteList(h) {
+    const q = (h.quotes || []).slice().reverse().slice(0, 8);
+    if (!q.length) return '<p class="mapnote">まだ記録された言葉はありません。活躍すると、ここに名台詞が残ります。</p>';
+    return `<ul class="quotes">${q.map((x) => `<li><span class="qs">${SIT[x.s] || ''}</span><p>「${rich(x.t)}」</p><small>${G.fmtDate(x.y, x.d)}</small></li>`).join('')}</ul>`;
+  }
   // 人生年表
   const LIFE_LABEL = { kaiju: '怪獣', org: '組織壊滅', agency: '事務所', death: '殉職', retire: '引退', scandal: 'スキャンダル', hof: '殿堂入り', inherit: '師匠の技を継承', marry: '結婚', tourney: '全国大会', saga: '宿敵との因縁', boss: '審判の日', fallen: '闇堕ち', reform: '改心', comeback: '現役復帰', after: '引退後の消息', legacy: '二世デビュー', milestone: '節目' };
   function lifeTimeline(h) {
@@ -886,6 +892,7 @@
           <h5>年度別の最終順位</h5>${yrs.length ? `<ol class="yrs">${yrs.slice().reverse().map(([y, rk]) => `<li><span>${y}</span><b>${rk}位</b></li>`).join('')}</ol>` : '<p class="mapnote">年末に記録されます。</p>'}
         </section>
         <section class="pcard"><h4>ファンの声と支持層</h4>${fanSection(h)}</section>
+        <section class="pcard"><h4>語録</h4>${quoteList(h)}</section>
         ${rel.length ? `<section class="pcard"><h4>人間関係</h4>${dl(rel)}</section>` : ''}
         <section class="pcard wide"><h4>人生年表</h4>${lifeTimeline(h)}</section>
       </div>

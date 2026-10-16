@@ -549,3 +549,10 @@ h4.sect { font-size: 0.82rem; letter-spacing: 0.12em; color: var(--ink); margin:
 .toast p { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 @media (max-width: 899px) { .toast { font-size: 0.78rem; padding: 6px 10px; } .toast p { -webkit-line-clamp: 2; } }
 .favcard .spark { max-height: 110px; }
+
+/* 語録 */
+.quotes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.quotes li { background: var(--panel); border-radius: 6px; padding: 6px 10px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 8px; align-items: baseline; }
+.quotes p { margin: 0; font-weight: 700; font-size: 0.88rem; }
+.quotes small { grid-column: 2; color: var(--mute); font-size: 0.7rem; }
+.qs { font-size: 0.66rem; font-weight: 700; color: var(--k-rank); background: color-mix(in srgb, var(--k-rank) 12%, transparent); border-radius: 3px; padding: 1px 6px; white-space: nowrap; }

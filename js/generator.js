@@ -159,6 +159,8 @@
     h.nickname = nk + R.pick(P.nickSfx);
     h.sponsor = R.pick(P.sponsors);
     h.skill = R.pick(P.skills);
+    if (G.assignVoice) G.assignVoice(h);
+    h.quotes = [];
     return h;
   }
 
@@ -199,6 +201,7 @@
       nemesis: null, formerHero: opts.formerHero ?? null, heroId: null, hist: [], jail: 0, debutYear: sim.year,
     };
     v.threat = threatOf(G.eff(v, D.inc.villain.need));
+    if (G.assignVillainVoice) G.assignVillainVoice(v);
     sim.villains.push(v);
     return v;
   }
