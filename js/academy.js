@@ -75,7 +75,7 @@
     const d = D.academies[s.school];
     const bias = { pow: d.focus.f, tec: (d.focus.f + d.focus.i) / 2, spd: (d.focus.f + d.focus.r) / 2, int: d.focus.i, men: d.focus.r };
     for (const k of Object.keys(bias)) {
-      const v = s.grow * R.f(0.2, 1.1) * (0.7 + bias[k]) * (s.slump > 0 ? 0.3 : 1);
+      const v = s.grow * R.f(0.2, 1.1) * (0.7 + bias[k]) * (s.slump > 0 ? 0.3 : 1) * (this.teacher ? this.tGrow(s, k) : 1);
       s.stats[k] = Math.min(99, Math.round((s.stats[k] + v) * 10) / 10);
     }
     if (!quiet && s.slump > 0) s.slump--;
@@ -125,6 +125,7 @@
     if (m >= 9 && m <= 11 && R.chance(0.3)) this.internEvent();
     if (!(m === 8 && dd > 10) && R.chance(0.42)) this.schoolLife();
     if (R.chance(0.012)) this.obEvent();
+    if (this.teacher) this.teacherDaily(m, dd);
   };
 
   // ---------- 行事 ----------
@@ -165,7 +166,7 @@
 
   P.sportsFestival = function () {
     for (let g = 1; g <= 3; g++) {
-      const pool = this.enrolled(null, g).filter((s) => s.hurt === 0).map((s) => [s, rating(s) * R.f(0.8, 1.2)]).sort((a, b) => b[1] - a[1]);
+      const pool = this.enrolled(null, g).filter((s) => s.hurt === 0).map((s) => [s, rating(s) * R.f(0.8, 1.2) * (this.teacher ? this.tSports(s) : 1)]).sort((a, b) => b[1] - a[1]);
       if (pool.length < 2) continue;
       const [w, r] = [pool[0][0], pool[1][0]];
       w.score += 10; w.fame += 30; r.score += 5; r.fame += 15;
@@ -278,7 +279,9 @@
         const q = i / Math.max(1, list.length);
         const pool = q < 0.25 ? heroes.slice(0, 40) : q < 0.6 ? heroes.slice(30, 160) : heroes.slice(120);
         const local = pool.filter((h) => h.region === s.region);
-        const h = R.pick(local.length && R.chance(0.5) ? local : pool) || R.pick(heroes);
+        const pk = s.internPick != null ? this.heroes[s.internPick] : null;
+        delete s.internPick;
+        const h = pk && pk.status === 'active' ? pk : R.pick(local.length && R.chance(0.5) ? local : pool) || R.pick(heroes);
         s.intern = h.id;
         if (!s.internHist.includes(h.id)) s.internHist.push(h.id);
         this.sEv(s, 'インターン', `${h.name}の事務所でインターン`);
@@ -316,7 +319,7 @@
       let p = 0;
       const failed = [];
       for (const s of list) {
-        const ch = clamp(0.62 + ((rating(s) - avg) / avg) * 2.2 - (s.hurt ? 0.3 : 0), 0.08, 0.97);
+        const ch = clamp(0.62 + ((rating(s) - avg) / avg) * 2.2 - (s.hurt ? 0.3 : 0) + (this.teacher ? this.tExam(s) : 0), 0.08, 0.97);
         if (R.chance(ch)) { s.lic = 1; p++; this.sEv(s, '仮免許', '仮免許試験に合格'); } else { failed.push(s); this.sEv(s, '仮免許', '仮免許試験に不合格'); }
       }
       this.post('school', 1, fill(R.pick(E.karimen), { sc: scName(sc.id), n: list.length, p }));
@@ -333,7 +336,7 @@
       const avg = list.reduce((a, s) => a + rating(s), 0) / list.length;
       let p = 0;
       for (const s of list) {
-        const ch = s.lic === 0 ? 0.05 : clamp(0.6 + ((rating(s) - avg) / avg) * 2 + (D.academies[sc.id].prestige - 50) / 60, 0.1, 0.96);
+        const ch = s.lic === 0 ? 0.05 : clamp(0.6 + ((rating(s) - avg) / avg) * 2 + (D.academies[sc.id].prestige - 50) / 60 + (this.teacher ? this.tExam(s) : 0), 0.1, 0.96);
         if (R.chance(ch)) { s.lic = 2; p++; this.sEv(s, '資格試験', 'ヒーロー資格試験に合格'); } else this.sEv(s, '資格試験', 'ヒーロー資格試験に不合格');
       }
       this.post('school', 1, fill(R.pick(E.license), { sc: scName(sc.id), n: list.length, p }));
@@ -347,13 +350,13 @@
     const quota = clamp(Math.round(need * 0.9), 18, 30);
     const third = this.enrolled(null, 3);
     const ok = third.filter((s) => s.lic === 2).sort((a, b) => (rating(b) + s2(b)) - (rating(a) + s2(a)));
-    function s2(s) { return s.fame * 0.1; }
+    function s2(s) { return s.fame * 0.1 + (s.recommend ? 12 : 0); }
     let taken = 0;
     for (const s of ok) {
-      if (taken < quota && !(s.stats.mor < 25 && R.chance(0.5)) && R.chance(0.95)) { s.plan = 'hero'; taken++; continue; }
+      if (taken < quota && !s.wantOther && !(s.stats.mor < 25 && R.chance(0.5)) && R.chance(0.95)) { s.plan = 'hero'; taken++; continue; }
       s.plan = 'other';
-      s.road = R.pick(D.school.careers);
-      s.why = taken >= quota ? '事務所からの声がかからなかった。' : '資格は取ったが、別の道を選んだ。';
+      s.road = s.wantOther && s.altRoad ? `${s.altRoad}道を選んだ` : R.pick(D.school.careers);
+      s.why = s.wantOther ? '担任に背中を押され、自分で決めた。' : taken >= quota ? '事務所からの声がかからなかった。' : '資格は取ったが、別の道を選んだ。';
     }
     for (const s of third.filter((x) => x.lic !== 2)) { s.plan = 'other'; s.road = R.pick(D.school.careers); s.why = R.pick(['ヒーロー資格試験に届かなかった。', '「ほかの形で人を助けたい」と語った。', '「もう一度自分を見つめ直したい」と話した。']); }
     for (const sc of this.academy.schools) {
@@ -480,6 +483,7 @@
       case 'buzz': s.fame += 25; text = fill(R.pick(L.buzz), ctx); break;
       case 'drop':
         if (s.grade === 3) return;
+        if (this.teacher && this.isMine(s)) { this.queueConsult('drop', s); return; }
         s.status = 'dropped'; s.road = R.pick(D.school.careers); s.gradYear = this.year;
         text = fill(R.pick(L.drop), ctx); this.sEv(s, '退学', `${scName(sc)}を去る`); break;
       case 'transfer': {
@@ -504,7 +508,7 @@
     const sc = s.school;
     const mates = this.heroes.filter((h) => alive(h) && h.sid !== undefined && this.students[h.sid].school === sc && Math.abs(this.students[h.sid].entry - s.entry) <= 1);
     const ctx = { s: S(s), sc: scName(sc), career: s.road.replace(/。$/, '') };
-    if (s.stats.mor < 30 && R.chance(0.2)) {
+    if (s.stats.mor < 30 && R.chance(0.2) && !(s.taught && s.trust >= 60)) {
       const v = Gen.villain(this, { pref: this.prefObj(s.pref), power: s.power, talent: clamp(s.talent + 8, 30, 95) });
       v.real = s.real; v.fromStudent = s.id; v.age = s.age;
       s.status = 'villain'; s.villainId = v.id; ctx.v = V(v);

@@ -31,7 +31,7 @@
   let skipping = false;
   let ticks = 0;
   let countdown = null;
-  const ui = load({ speed: 2, tab: 'dash', cats: Object.keys(CAT), autoYear: true, recType: 'death', mapMetric: 'inc', size: 'm', noExtra: false, catsV: 1, slot: 1 });
+  const ui = load({ speed: 2, tab: 'dash', cats: Object.keys(CAT), autoYear: true, recType: 'death', mapMetric: 'inc', size: 'm', noExtra: false, catsV: 1, slot: 1, consultStop: true });
   // 「学園」の分類が増えた版より前の設定には、学園を足しておく
   if (ui.catsV < 2) { if (!ui.cats.includes('school')) ui.cats.push('school'); ui.catsV = 2; }
   ui.favs = new Set(); ui.favOnly = false; ui.sfavs = new Set(); ui.sfavDone = new Set();
@@ -46,7 +46,7 @@
     return def;
   }
   function save() {
-    try { localStorage.setItem('hero-ui', JSON.stringify({ speed: ui.speed, tab: ui.tab, cats: ui.cats, autoYear: ui.autoYear, recType: ui.recType, mapMetric: ui.mapMetric, size: ui.size, noExtra: ui.noExtra, catsV: ui.catsV, slot: ui.slot })); } catch (e) { /* 無視 */ }
+    try { localStorage.setItem('hero-ui', JSON.stringify({ speed: ui.speed, tab: ui.tab, cats: ui.cats, autoYear: ui.autoYear, recType: ui.recType, mapMetric: ui.mapMetric, size: ui.size, noExtra: ui.noExtra, catsV: ui.catsV, slot: ui.slot, consultStop: ui.consultStop })); } catch (e) { /* 無視 */ }
   }
 
   // ---------- 世界の保存（IndexedDB） ----------
@@ -262,6 +262,7 @@
     const items = sim.step();
     ticks++;
     renderDay(lastDay(), items);
+    checkConsult();
     renderHeader();
     const heavy = ui.speed >= 4 ? ticks % 7 === 0 : ui.speed === 3 ? ticks % 2 === 0 : true;
     if (heavy || sim.ended) renderSide(false);
@@ -443,6 +444,7 @@
     if (p === 'villain') renderVillains();
     if (p === 'org') renderOrgs();
     if (p === 'school') renderSchool();
+    if (p === 'teach') renderTeach();
     if (p === 'records') renderRecords();
   }
 
@@ -1055,6 +1057,7 @@
     const st = {}; for (const k of Object.keys(s.stats)) st[k] = Math.round(s.stats[k]);
     const gr = gradeRank(s);
     const rel = [];
+    if (s.taught) rel.push(['担任', `${esc(s.teacherName || '')}先生（あなた）${s.status === 'enrolled' && sim.isMine(s) ? `　やる気${Math.round(s.mood)}・信頼${Math.round(s.trust)}` : ''}`]);
     if (s.friend !== null) rel.push(['親友', slinkFull(sim.students[s.friend])]);
     if (s.rival !== null) rel.push(['ライバル', slinkFull(sim.students[s.rival])]);
     if (s.partner !== null) rel.push(['恋人', slinkFull(sim.students[s.partner])]);
@@ -1093,6 +1096,85 @@
         <section class="pcard wide"><h4>学園年表</h4>${life.length ? `<ol class="life">${s.ev.map((e) => `<li><span class="ly">${e.y}</span><b>${esc(e.t)}</b><span>${esc(e.x)}</span></li>`).join('')}</ol>` : '<p class="mapnote">まだ記録はありません。</p>'}</section>
       </div>
       <h4 class="sect">学園でのできごと</h4>${histList(s)}`);
+  }
+
+  // ---------- 担任（教師モード） ----------
+  const meter = (v, cls) => `<i class="tbar ${cls}"><b style="width:${Math.round(v)}%"></b></i>`;
+  function renderTeach() {
+    const pane = $('#pane-teach');
+    const t = sim.teacher;
+    if (!t) {
+      const rnd = localRng(sim.seed + ':teacher');
+      const nm = D.teacherNames[Math.floor(rnd() * D.teacherNames.length)];
+      pane.innerHTML = `<h2>担任になる<small>教師モード</small></h2>
+        <div class="fav-empty teach-intro">
+          <p><b>養成校の教師として着任し、クラスの担任になれます。</b></p>
+          <p>世界はこれまでどおり自動で進みます。そのうえで、受け持ちクラスの指導方針を決めたり、毎週たまる指導ポイントで個別指導や面談をしたり、生徒の相談に答えたりできます。生徒のやる気と信頼が、成長・試験・進路・退学に影響します。</p>
+          <p>3年間受け持った生徒が卒業すると、新しい1年生の担任になります。教え子がヒーローになると、その後の活躍もここで追いかけられます。</p>
+          <div class="field col"><label>名前<input id="tName" type="text" value="${esc(nm)}"></label>
+          <label>学校<select id="tSchool">${D.academies.map((d, i) => `<option value="${i}">${esc(d.name)}（${esc(d.pref)}）</option>`).join('')}</select></label></div>
+          <p class="mapnote">その学校の1年生の担任になります。この世界（スロット${ui.slot}）だけに反映されます。</p>
+          <button type="button" class="btn" id="teachStart">着任する</button>
+        </div>`;
+      return;
+    }
+    const d = D.academies[t.school];
+    const cls = sim.myClass().sort((a, b) => sim.studentRating(b) - sim.studentRating(a));
+    const g = sim.myGrade();
+    const pupils = sim.students.filter((s) => s.taught && s.status !== 'enrolled').sort((a, b) => (b.gradYear || 0) - (a.gradYear || 0));
+    const heroes = pupils.filter((s) => s.status === 'hero').map((s) => sim.heroes[s.heroId]);
+    const apPips = Array.from({ length: 6 }, (_, i) => `<i class="${i < t.ap ? 'on' : ''}"></i>`).join('');
+    const act = (s) => {
+      const dis = t.ap < 1 ? ' disabled' : '';
+      return `<div class="tacts"><span>指導</span><button type="button" data-tact="teach:${s.id}:f"${dis}>戦闘</button><button type="button" data-tact="teach:${s.id}:r"${dis}>救助</button><button type="button" data-tact="teach:${s.id}:i"${dis}>捜査</button><button type="button" data-tact="talk:${s.id}"${dis}>面談</button><button type="button" data-tact="praise:${s.id}"${dis}>ほめる</button></div>`;
+    };
+    const row = (s, i) => `<tr><td class="rk">${i + 1}</td><td class="who"><div>${link('s', s)}${sfavBtn(s)}${sStatus(s)}${s.plan ? `<span class="st${s.plan === 'hero' ? ' ok-st' : ''}">${s.plan === 'hero' ? 'ヒーロー内定' : '別の道へ'}</span>` : ''}${s.recommend ? '<span class="st gold">推薦状</span>' : ''}
+      <small>${s.hname ? `「${esc(s.hname)}」・` : ''}${esc(s.power.name)}・評価 ${Math.round(sim.studentRating(s))}</small>
+      <div class="tmeters"><span>やる気</span>${meter(s.mood ?? 50, 'mood')}<span>信頼</span>${meter(s.trust ?? 40, 'trust')}</div>${act(s)}</div></td></tr>`;
+    const pend = t.pending.map((c) => consultHTML(c)).join('');
+    pane.innerHTML = `<h2>${esc(t.name)}先生<small>${esc(d.name)}・${g ? `${g}年生の担任` : '新しいクラスを待っています'}</small></h2>
+      ${ui.teachMsg ? `<p class="tmsg">${rich(ui.teachMsg)}</p>` : ''}
+      <section class="schhead" style="--sc:${d.color}">
+        <div class="kpis sm"><div class="kpi"><b>${Math.round(t.rep)}</b><span>評判・${esc(sim.teacherTitle())}</span></div><div class="kpi"><b>${cls.length}</b><span>受け持ちの生徒</span></div><div class="kpi"><b>${heroes.length}</b><span>ヒーローになった教え子</span></div><div class="kpi"><b>${t.terms.length}</b><span>送り出したクラス</span></div></div>
+        <div class="ap"><span>指導ポイント</span><span class="pips">${apPips}</span><small>毎週月曜に2回復（最大6）。個別指導・面談・ほめるに1ずつ使います。</small></div>
+      </section>
+      <h3 class="sub">指導方針</h3>
+      <div class="seg" role="group" aria-label="指導方針">${Object.entries(D.plans).map(([k, p]) => `<button type="button" data-plan="${k}" aria-pressed="${t.plan === k}">${esc(p.label)}</button>`).join('')}</div>
+      <p class="mapnote">${esc(D.plans[t.plan].desc)}</p>
+      ${pend ? `<h3 class="sub">生徒からの相談<small>3週間答えないと、生徒が自分で決めます</small></h3>${pend}` : ''}
+      <label class="check"><input type="checkbox" id="consultStop" ${ui.consultStop !== false ? 'checked' : ''}> 相談が来たら一時停止して知らせる</label>
+      <h3 class="sub">クラス名簿<small>評価の高い順</small></h3>
+      ${cls.length ? `<table class="rk-table srk trk"><tbody>${cls.map(row).join('')}</tbody></table>` : '<p class="empty">4月の入学式のあと、新しい1年生の担任になります。</p>'}
+      <h3 class="sub">教え子<small>${pupils.length}名</small></h3>
+      ${pupils.length ? `<table class="rk-table srk"><tbody>${pupils.slice(0, 60).map(studentRow).join('')}</tbody></table>` : '<p class="empty">まだ卒業した教え子はいません。</p>'}
+      ${t.terms.length ? `<ul class="list">${t.terms.slice().reverse().map((x) => `<li><span class="k">${x.y}年卒業</span><span>${x.total}名中${x.heroes}名がヒーローに</span></li>`).join('')}</ul>` : ''}
+      <h3 class="sub">担任日誌<small>新しい順</small></h3>
+      <ul class="hist">${t.log.slice(-40).reverse().map((l) => `<li><span>${G.fmtDate(l.y, l.d)}</span><div>${rich(l.t)}</div></li>`).join('') || '<li><div class="mapnote">まだ記録はありません。</div></li>'}</ul>
+      <div class="btnrow"><button type="button" class="btn alt" id="teachQuit">教師をやめる</button></div>`;
+  }
+  function consultHTML(c, inPop) {
+    const opts = sim.consultOpts(c);
+    return `<div class="consult${inPop ? ' pop' : ''}"><p>${rich(sim.consultText(c))}</p><small>${G.fmtDate(c.y, c.d)}</small>
+      <div class="copts">${opts.map((o, i) => `<button type="button" class="btn alt" data-cans="${c.id}:${i}">${esc(o.label)}</button>`).join('')}</div></div>`;
+  }
+  const seenConsult = new Set();
+  function checkConsult() {
+    const t = sim.teacher;
+    if (!t || !t.pending.length || ui.consultStop === false || skipping || !$('#extra').hidden) return;
+    const c = t.pending.find((x) => !seenConsult.has(x.id));
+    if (!c) return;
+    seenConsult.add(c.id);
+    const wasPlaying = !!timer;
+    stop();
+    const box = $('#extra');
+    box.innerHTML = `<div class="extra-box consult-box" role="dialog" aria-modal="true" aria-labelledby="consultTitle">
+      <div class="extra-mast"><span class="extra-stamp teach">相談</span><span>${esc(D.academies[t.school].short)}　${esc(t.name)}先生へ</span></div>
+      <h2 id="consultTitle" class="sr">生徒からの相談</h2>
+      <div id="consultBody">${consultHTML(c, true)}</div>
+      <div class="btnrow"><button type="button" class="btn alt" id="extraGo">あとで答える</button></div></div>`;
+    box.hidden = false;
+    box.dataset.resume = wasPlaying ? '1' : '';
+    clearInterval(extraTimer);
   }
 
   // ---------- 詳細 ----------
@@ -1341,6 +1423,7 @@
       ${deaths.length ? `<h4>今年、殉職したヒーロー</h4><p class="bio">${deaths.map((l) => hlink(sim.heroes[l.h])).join('　')}</p>` : ''}
       ${(() => { const tt = sim.tourneys.find((x) => x.y === a.year && x.champ !== null); const bs = sim.log.filter((l) => l.t === 'boss' && l.y === a.year); const sg = sim.log.filter((l) => l.t === 'saga' && l.y === a.year && l.res === '決着'); return (tt || bs.length || sg.length) ? `<h4>今年の名場面</h4><ul class="list">${tt ? `<li><span class="k">全国大会</span>${hlink(sim.heroes[tt.champ])}が優勝</li>` : ''}${bs.map((l) => `<li><span class="k">審判の日</span>${logSummary(l)}</li>`).join('')}${sg.map((l) => `<li><span class="k">因縁の決着</span>${logSummary(l)}</li>`).join('')}</ul>` : ''; })()}
       ${sim.chronicles.length && sim.chronicles[sim.chronicles.length - 1].to === a.year ? `<div class="chron-note"><b>この10年が年代記にまとめられました。</b><button type="button" class="btn alt" data-chron="${sim.chronicles.length - 1}">年代記を読む</button></div>` : ''}
+      ${sim.teacher ? `<h4>担任として</h4><p class="bio">${esc(sim.teacher.name)}先生（${esc(D.academies[sim.teacher.school].short)}）の評判は${Math.round(sim.teacher.rep)}・「${esc(sim.teacherTitle())}」。ヒーローになった教え子は${sim.students.filter((x) => x.taught && x.status === 'hero').length}名。</p>` : ''}
       ${hofs.length ? `<h4>今年の殿堂入り</h4><p class="bio">${hofs.map((l) => hlink(sim.heroes[l.h])).join('　')}</p>` : ''}
       ${(() => {
         const p = lsGet(predKey())[a.year];
@@ -1450,6 +1533,26 @@
       if (id === 'slotBtn') { showSlots(); return; }
       const sg = e.target.closest('[data-slotgo]');
       if (sg) { switchSlot(+sg.dataset.slotgo); return; }
+      const ca = e.target.closest('[data-cans]');
+      if (ca) {
+        const [cid, idx] = ca.dataset.cans.split(':').map(Number);
+        const res = sim.resolveConsult(cid, idx) || '';
+        const inPop = ca.closest('#extra');
+        if (inPop) { $('#consultBody').innerHTML = `<p class="tmsg">${rich(res) || '（この相談はもう終わっています）'}</p>`; $('#extraGo').textContent = '続ける'; }
+        ui.teachMsg = res;
+        if (currentPane() === 'teach') renderTeach();
+        return;
+      }
+      const pl = e.target.closest('[data-plan]');
+      if (pl) { sim.setPlan(pl.dataset.plan); ui.teachMsg = ''; renderTeach(); return; }
+      const ta = e.target.closest('[data-tact]');
+      if (ta) { const [k, sid, area] = ta.dataset.tact.split(':'); ui.teachMsg = sim.teacherAct(k, +sid, area) || ''; renderTeach(); return; }
+      if (id === 'teachStart') { sim.startTeaching($('#tName').value.trim(), +$('#tSchool').value); ui.teachMsg = ''; renderTeach(); saveWorld(); return; }
+      if (id === 'teachQuit') {
+        const b = e.target;
+        if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = '本当にやめる（教え子の記録は残ります）'; return; }
+        sim.quitTeaching(); renderTeach(); saveWorld(); return;
+      }
       const sd = e.target.closest('[data-slotdel]');
       if (sd) {
         const n = +sd.dataset.slotdel;
@@ -1471,6 +1574,7 @@
     });
     document.addEventListener('change', (e) => {
       if (e.target.id === 'noExtra') { ui.noExtra = e.target.checked; save(); }
+      if (e.target.id === 'consultStop') { ui.consultStop = e.target.checked; save(); }
       if (e.target.id === 'autoYear') { ui.autoYear = e.target.checked; save(); if (!ui.autoYear) cancelCountdown(); }
     });
     document.addEventListener('keydown', (e) => {
