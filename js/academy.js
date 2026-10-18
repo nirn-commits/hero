@@ -186,7 +186,7 @@
 
   P.finalExam = function () {
     for (const sc of this.academy.schools) {
-      const list = this.enrolled(sc.id);
+      const list = this.enrolled(sc.id).filter((s) => !(this.teacher && this.isMine(s)));
       if (!list.length) continue;
       const sorted = list.slice().sort((a, b) => rating(a) - rating(b));
       const fails = sorted.slice(0, Math.max(1, Math.round(list.length * 0.12)));
@@ -350,7 +350,7 @@
     const quota = clamp(Math.round(need * 0.9), 18, 30);
     const third = this.enrolled(null, 3);
     const ok = third.filter((s) => s.lic === 2).sort((a, b) => (rating(b) + s2(b)) - (rating(a) + s2(a)));
-    function s2(s) { return s.fame * 0.1 + (s.recommend ? 12 : 0); }
+    function s2(s) { return s.fame * 0.1 + (s.recommend === true ? 12 : s.recommend || 0); }
     let taken = 0;
     for (const s of ok) {
       if (taken < quota && !s.wantOther && !(s.stats.mor < 25 && R.chance(0.5)) && R.chance(0.95)) { s.plan = 'hero'; taken++; continue; }

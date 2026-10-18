@@ -123,3 +123,95 @@
     },
   };
 })(globalThis.HG = globalThis.HG || {});
+
+// ---------- 本格版：時間割・設備・教師の技能・絆・期末試験・査定 ----------
+(function (G) {
+  'use strict';
+  const D = G.D;
+
+  // 授業。g は1コマあたりの伸び、fat は疲労、unity は団結、prof は能力熟練度
+  D.lessons = {
+    fight: { label: '戦闘訓練', short: '戦', g: { pow: 0.6, tec: 0.4, spd: 0.4 }, fat: 8, area: 'f' },
+    rescue: { label: '救助訓練', short: '救', g: { men: 0.6, spd: 0.4, pow: 0.2 }, fat: 7, unity: 0.5, area: 'r' },
+    invest: { label: '捜査演習', short: '捜', g: { int: 0.6, tec: 0.4 }, fat: 4, area: 'i' },
+    lecture: { label: '座学', short: '座', g: { int: 0.4, men: 0.1 }, fat: 2, mood: -0.5, exam: 1 },
+    quirk: { label: '能力訓練', short: '能', g: { tec: 0.2 }, prof: 0.32, fat: 6 },
+    team: { label: '連携訓練', short: '連', g: { tec: 0.2, men: 0.2 }, fat: 4, unity: 2 },
+    free: { label: '自主練', short: '自', g: {}, fat: 3, mood: 0.6, free: true },
+    rest: { label: '休養', short: '休', g: {}, fat: -14, mood: 1.5 },
+  };
+  D.days = ['月', '火', '水', '木', '金'];
+  D.presets = {
+    balance: ['fight', 'lecture', 'rescue', 'invest', 'quirk', 'team', 'fight', 'lecture', 'free', 'rest'],
+    fight: ['fight', 'fight', 'quirk', 'fight', 'fight', 'team', 'fight', 'quirk', 'fight', 'rest'],
+    rescue: ['rescue', 'lecture', 'rescue', 'team', 'rescue', 'quirk', 'rescue', 'lecture', 'free', 'rest'],
+    study: ['lecture', 'invest', 'lecture', 'invest', 'quirk', 'lecture', 'invest', 'team', 'lecture', 'rest'],
+    rest: ['lecture', 'rest', 'free', 'rest', 'quirk', 'rest', 'team', 'rest', 'free', 'rest'],
+  };
+
+  // 学級予算で買えるもの（万円）
+  D.shop = {
+    gym: { label: 'トレーニング機器', price: 90, desc: '戦闘訓練・救助訓練の伸びが15%上がる。', keep: true },
+    med: { label: '医務室の設備', price: 60, desc: 'けがをしにくくなり、週ごとの疲労の回復が増える。', keep: true },
+    lib: { label: '資料室', price: 50, desc: '捜査演習・座学の伸びが20%上がり、試験に少し強くなる。', keep: true },
+    sim: { label: '実戦シミュレーター', price: 160, desc: 'すべての授業の伸びが10%上がり、能力熟練度も伸びやすくなる。', keep: true },
+    snack: { label: 'クラスへの差し入れ', price: 8, desc: 'クラス全員のやる気が10上がる。' },
+    camp: { label: '週末の強化合宿', price: 40, desc: '次の1週間の伸びが2倍になる。疲労が30たまる。' },
+    item: { label: 'サポートアイテムの試作', price: 30, desc: '名簿で選んだ生徒の能力熟練度が15上がる（名簿の「アイテム」ボタン）。', pick: true },
+  };
+
+  // 教師の技能（各3段階）
+  D.tskills = {
+    coach: { label: '実技指導', desc: '個別指導の効果が1段階ごとに25%上がる。' },
+    counsel: { label: 'カウンセリング', desc: '面談で信頼が上がりやすく、相談の答えがうまくいきやすくなる。' },
+    plan: { label: '授業設計', desc: '時間割による伸びが1段階ごとに6%上がる。' },
+    network: { label: '人脈', desc: '学級予算が毎月増え、推薦状がより効くようになる。' },
+    stamina: { label: '体力', desc: '指導ポイントの上限が1段階ごとに1増える。' },
+  };
+
+  // 役職。rep と年数で昇進する
+  D.positions = [
+    { label: '担任', rep: 0, years: 0, budget: 12, ap: 0 },
+    { label: '学年主任', rep: 60, years: 2, budget: 18, ap: 1 },
+    { label: '教頭', rep: 75, years: 5, budget: 25, ap: 1 },
+    { label: '校長', rep: 88, years: 8, budget: 35, ap: 2 },
+  ];
+
+  // 絆が深まったときの話（{dream}{club}{awaken}{look}{food} が使える）
+  D.bond = [
+    {
+      text: '放課後、{s}が「先生、ちょっといいですか」と声をかけてきた。{club}のことや、好きな{food}の話をしたあと、ぽつりと「本当は、{dream}って夢、人に言うの恥ずかしかったんです」と打ち明けた。',
+      opts: [
+        { label: '「恥ずかしくない。いい夢だ」と伝える', eff: { trust: 6, mood: 10 }, res: '{s}はうれしそうに「先生に言ってよかった」と笑った。' },
+        { label: '「その夢のために、何から始める？」と聞く', eff: { trust: 4, score: 2, prof: 5 }, res: '二人で、夢までの道のりを紙に書き出した。' },
+      ],
+    },
+    {
+      text: '{s}が能力のことを話してくれた。「{awaken}。あのときから、ずっとこの力が少し怖かったんです」',
+      opts: [
+        { label: '「その力で、誰を守りたい？」と問いかける', eff: { trust: 6, mor: 6, prof: 10 }, res: '{s}はしばらく考えてから、迷いのない顔でうなずいた。' },
+        { label: '「怖さを知っている人ほど、強くなれる」と話す', eff: { trust: 8, st: { men: 4 } }, res: '{s}は「先生みたいな大人になりたいです」と言った。' },
+      ],
+    },
+    {
+      text: '夜の訓練場で、{s}がひとりで技の練習をしていた。「先生、見ていてください。今なら、できる気がするんです」',
+      opts: [
+        { label: '最後まで見届ける', eff: { trust: 5, prof: 15 }, res: '{s}の能力が、これまでにない輝きを放った。', special: 'awaken' },
+        { label: '「無理はするな」と止める', eff: { trust: 4, mood: 8 }, res: '{s}は少し不満そうだったが、「明日またやります」と笑った。' },
+      ],
+    },
+  ];
+
+  // 期末実技試験の作戦。相手のタイプ（power/speed/smart）との相性がある
+  D.examStrat = {
+    head: { label: '正面突破', desc: '力で押し切る。パワー型の先生には不利。', beats: 'smart', loses: 'power' },
+    combo: { label: '陽動と連携', desc: '二人の連携でスキを作る。団結が高いほど強い。', beats: 'power', loses: 'speed' },
+    wait: { label: '持久戦', desc: '時間切れまで粘る。スピード型の先生に強い。', beats: 'speed', loses: 'smart' },
+  };
+  D.examFoe = { power: 'パワー型', speed: 'スピード型', smart: '頭脳派' };
+  D.examPlay = {
+    win: ['{a}と{b}は{foe}を相手に{how}、見事に合格した。', '{a}の機転と{b}の踏ん張りで、{a}・{b}組は合格をつかんだ。'],
+    lose: ['{a}と{b}は{foe}の前に手も足も出ず、不合格となった。', '{a}・{b}組は最後まで粘ったが、条件を満たせなかった。'],
+    how: { head: '真正面からぶつかり', combo: '陽動で注意をそらして', wait: '時間いっぱいまで粘り' },
+  };
+})(globalThis.HG = globalThis.HG || {});

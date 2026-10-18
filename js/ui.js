@@ -1109,8 +1109,8 @@
       pane.innerHTML = `<h2>担任になる<small>教師モード</small></h2>
         <div class="fav-empty teach-intro">
           <p><b>養成校の教師として着任し、クラスの担任になれます。</b></p>
-          <p>世界はこれまでどおり自動で進みます。そのうえで、受け持ちクラスの指導方針を決めたり、毎週たまる指導ポイントで個別指導や面談をしたり、生徒の相談に答えたりできます。生徒のやる気と信頼が、成長・試験・進路・退学に影響します。</p>
-          <p>3年間受け持った生徒が卒業すると、新しい1年生の担任になります。教え子がヒーローになると、その後の活躍もここで追いかけられます。</p>
+          <p>世界はこれまでどおり自動で進みます。そのうえで、1週間の時間割を組み、指導ポイントで個別指導や面談をし、生徒の相談に答え、期末試験の作戦を立て、学級予算で設備をそろえます。生徒のやる気・疲労・信頼・適性・能力熟練度が、成長や試験、進路を左右します。</p>
+          <p>3年間受け持った生徒が卒業すると、新しい1年生の担任になります。評判が上がると学年主任・教頭・校長へと昇進します。</p>
           <div class="field col"><label>名前<input id="tName" type="text" value="${esc(nm)}"></label>
           <label>学校<select id="tSchool">${D.academies.map((d, i) => `<option value="${i}">${esc(d.name)}（${esc(d.pref)}）</option>`).join('')}</select></label></div>
           <p class="mapnote">その学校の1年生の担任になります。この世界（スロット${ui.slot}）だけに反映されます。</p>
@@ -1118,38 +1118,95 @@
         </div>`;
       return;
     }
+    sim.ensureTeacher();
     const d = D.academies[t.school];
-    const cls = sim.myClass().sort((a, b) => sim.studentRating(b) - sim.studentRating(a));
     const g = sim.myGrade();
+    const sub = ui.tsub || 'class';
+    const SUBS = [['class', 'クラス'], ['tt', '時間割'], ['event', '行事と試験'], ['shop', '予算と設備'], ['me', '教師'], ['log', '日誌']];
+    const apPips = Array.from({ length: sim.apMax() }, (_, i) => `<i class="${i < t.ap ? 'on' : ''}"></i>`).join('');
+    const pend = t.pending.map((c) => consultHTML(c)).join('');
+    let body = '';
+    if (sub === 'class') body = teachClass(t);
+    if (sub === 'tt') body = teachTT(t);
+    if (sub === 'event') body = teachEvent(t);
+    if (sub === 'shop') body = teachShop(t);
+    if (sub === 'me') body = teachMe(t);
+    if (sub === 'log') body = `<ul class="hist">${t.log.slice(-80).reverse().map((l) => `<li><span>${G.fmtDate(l.y, l.d)}</span><div>${rich(l.t).replace(/\n/g, '<br>')}</div></li>`).join('') || '<li><div class="mapnote">まだ記録はありません。</div></li>'}</ul>`;
+    pane.innerHTML = `<h2>${esc(t.name)}先生<small>${esc(d.short)}・${esc(sim.posLabel())}・${g ? `${g}年生の担任` : '新しいクラスを待っています'}</small></h2>
+      <section class="schhead tdash" style="--sc:${d.color}">
+        <div class="kpis sm"><div class="kpi"><b>${Math.round(t.rep)}</b><span>評判・${esc(sim.teacherTitle())}</span></div><div class="kpi"><b>${Math.round(t.unity)}</b><span>クラスの団結</span></div><div class="kpi"><b>${t.budget}<small>万</small></b><span>学級予算</span></div><div class="kpi"><b>Lv${t.lv}</b><span>教師レベル${t.sp ? `・技能pt ${t.sp}` : ''}</span></div></div>
+        <div class="ap"><span>指導ポイント</span><span class="pips">${apPips}</span><small>毎週月曜に2回復。個別指導・面談・ほめる・休ませるに1ずつ使います。</small></div>
+      </section>
+      ${ui.teachMsg ? `<p class="tmsg">${rich(ui.teachMsg).replace(/\n/g, '<br>')}</p>` : ''}
+      ${pend ? `<h3 class="sub">生徒からの相談<small>3週間答えないと、生徒が自分で決めます</small></h3>${pend}` : ''}
+      <div class="seg tsubs" role="group" aria-label="担任の画面">${SUBS.map(([k, l]) => `<button type="button" data-tsub="${k}" aria-pressed="${sub === k}">${l}</button>`).join('')}</div>
+      ${body}`;
+  }
+  const aptMark = (v) => (v >= 1.2 ? '◎' : v >= 1.0 ? '○' : v >= 0.85 ? '△' : '×');
+  function teachClass(t) {
+    const cls = sim.myClass().sort((a, b) => sim.studentRating(b) - sim.studentRating(a));
+    const dis = t.ap < 1 ? ' disabled' : '';
+    const row = (s, i) => {
+      sim.prepStudent(s);
+      const apt = s.aptKnown ? `戦${aptMark(s.apt.f)} 救${aptMark(s.apt.r)} 捜${aptMark(s.apt.i)}` : '適性 ？（面談2回か10週で判明）';
+      return `<tr><td class="rk">${i + 1}</td><td class="who"><div>${link('s', s)}${sfavBtn(s)}${sStatus(s)}${s.plan ? `<span class="st${s.plan === 'hero' ? ' ok-st' : ''}">${s.plan === 'hero' ? 'ヒーロー内定' : '別の道へ'}</span>` : ''}${s.recommend ? '<span class="st gold">推薦状</span>' : ''}<span class="bondh" title="絆">${'♥'.repeat(s.bond)}${'♡'.repeat(3 - s.bond)}</span>
+        <small>${s.hname ? `「${esc(s.hname)}」・` : ''}${esc(s.power.name)}・評価 ${Math.round(sim.studentRating(s))}・${apt}${s.move ? `・必殺技「${esc(s.move)}」` : ''}</small>
+        <div class="tmeters"><span>やる気</span>${meter(s.mood, 'mood')}<span>信頼</span>${meter(s.trust, 'trust')}<span>疲労</span>${meter(s.fat, 'fat')}<span>熟練</span>${meter(s.prof, 'prof')}</div>
+        <div class="tacts"><span>指導</span><button type="button" data-tact="teach:${s.id}:f"${dis}>戦闘</button><button type="button" data-tact="teach:${s.id}:r"${dis}>救助</button><button type="button" data-tact="teach:${s.id}:i"${dis}>捜査</button><button type="button" data-tact="teach:${s.id}:q"${dis}>能力</button><button type="button" data-tact="talk:${s.id}"${dis}>面談</button><button type="button" data-tact="praise:${s.id}"${dis}>ほめる</button><button type="button" data-tact="rest:${s.id}"${dis}>休ませる</button>${t.items ? `<button type="button" data-tact="item:${s.id}">アイテム</button>` : ''}</div></div></td></tr>`;
+    };
+    const tired = cls.filter((s) => s.fat > 70).length;
+    return `${tired ? `<p class="mapnote warnline">疲労が70を超えている生徒が${tired}名います。疲労が80を超えるとけがをしやすく、伸びも半分になります。</p>` : ''}
+      <p class="mapnote">熟練度が50で必殺技を編み出し、100で能力が覚醒します。信頼が50・70・90に届くと、その生徒との特別な話（絆）が起こります。</p>
+      ${cls.length ? `<table class="rk-table srk trk"><tbody>${cls.map(row).join('')}</tbody></table>` : '<p class="empty">4月の入学式のあと、新しい1年生の担任になります。</p>'}`;
+  }
+  function teachTT(t) {
+    const L = D.lessons;
+    const cell = (i) => `<td><select data-slot="${i}" aria-label="${D.days[i >> 1]}曜${i % 2 ? '午後' : '午前'}">${Object.entries(L).map(([k, v]) => `<option value="${k}"${t.tt[i] === k ? ' selected' : ''}>${v.label}</option>`).join('')}</select></td>`;
+    // 1週間の見込み
+    const gain = {}; let fat = -24 - (t.eq.med ? 6 : 0), mood = 0, prof = 0, unity = -1.2;
+    for (const k of t.tt) { for (const [st, v] of Object.entries(L[k].g)) gain[st] = (gain[st] || 0) + v; fat += L[k].fat; mood += L[k].mood || 0; prof += L[k].prof || 0; unity += (L[k].unity || 0) * 0.6; }
+    const lab = { pow: 'パワー', tec: '技術', spd: '機動力', int: '知性', men: '精神力' };
+    const mx = Math.max(1, ...Object.values(gain));
+    return `<p class="mapnote">平日5日×午前・午後の10コマを組みます。月曜日ごとに1週間分の成果が出ます。土日で疲労が24回復します。</p>
+      <div class="seg" role="group" aria-label="時間割の型">${Object.entries(D.plans).map(([k, p]) => `<button type="button" data-preset="${k}" aria-pressed="${t.plan === k && D.presets[k].every((x, i) => x === t.tt[i])}">${esc(p.label)}の型</button>`).join('')}</div>
+      <div class="tablewrap"><table class="tt"><thead><tr><th></th>${D.days.map((x) => `<th>${x}</th>`).join('')}</tr></thead><tbody>
+        <tr><th>午前</th>${[0, 2, 4, 6, 8].map(cell).join('')}</tr><tr><th>午後</th>${[1, 3, 5, 7, 9].map(cell).join('')}</tr></tbody></table></div>
+      <h3 class="sub">この時間割の1週間の見込み</h3>
+      <div class="ttsum">${Object.entries(lab).map(([k, l]) => `<div class="meter blue"><span>${l}</span><i><b style="width:${((gain[k] || 0) / mx) * 100}%"></b></i><span>${(gain[k] || 0).toFixed(1)}</span></div>`).join('')}</div>
+      <p class="bio">疲労 <b class="${fat > 0 ? 'ng' : 'ok'}">${fat > 0 ? '+' : ''}${fat}</b>／週　やる気 ${mood >= 0 ? '+' : ''}${mood.toFixed(1)}　熟練度 +${prof.toFixed(1)}　団結 ${unity >= 0 ? '+' : ''}${unity.toFixed(1)}</p>
+      <ul class="list">${Object.values(L).map((v) => `<li><span class="k">${v.label}</span><span>${Object.keys(v.g).map((k) => lab[k]).join('・') || (v.free ? '苦手な能力を自分で補う' : v.fat < 0 ? '疲労が大きく抜ける' : '―')}${v.prof ? '・熟練度' : ''}${v.unity ? '・団結' : ''}${v.exam ? '・試験に強くなる' : ''}（疲労${v.fat > 0 ? '+' : ''}${v.fat}）</span></li>`).join('')}</ul>`;
+  }
+  function teachEvent(t) {
+    const ex = t.exams.slice().reverse();
+    return `<h3 class="sub">学園の行事</h3><p class="mapnote">次の行事：<b>${nextSchoolEvent()}</b></p>
+      <ul class="list">${SCAL.map(([m, dd, l]) => `<li><span class="k">${m}月${dd}日</span><span>${esc(l)}</span></li>`).join('')}<li><span class="k">7月1日</span><span>期末実技試験の作戦会議（担任）</span></li><li><span class="k">3月25日</span><span>年度末の査定（担任）</span></li></ul>
+      <h3 class="sub">期末実技試験<small>2人1組でプロの先生に挑む。作戦と先生のタイプの相性、団結、疲労が結果を左右します</small></h3>
+      <ul class="list">${Object.values(D.examStrat).map((v) => `<li><span class="k">${v.label}</span><span>${esc(v.desc)}</span></li>`).join('')}</ul>
+      ${ex.length ? ex.map((x) => `<section class="awyear"><h3>${x.y}年　${link('h', sim.heroes[x.foe])}先生（${D.examFoe[x.foeType]}）・作戦「${D.examStrat[x.strat].label}」　${x.res.filter((r) => r.ok).length}/${x.res.length}組合格</h3><ul class="hist">${x.res.map((r) => `<li><span>${r.ok ? '<span class="ok">合格</span>' : '<span class="ng">不合格</span>'}</span><div>${rich(r.text)}</div></li>`).join('')}</ul></section>`).join('') : '<p class="empty">まだ期末試験の記録はありません。</p>'}`;
+  }
+  function teachShop(t) {
+    return `<p class="mapnote">学級予算は毎月1日に入ります（役職と技能「人脈」で増えます）。いまの予算：<b>${t.budget}万円</b></p>
+      <div class="cards">${Object.entries(D.shop).map(([k, it]) => {
+        const owned = it.keep && t.eq[k];
+        return `<div class="card shopcard${owned ? ' owned' : ''}"><h3>${esc(it.label)}</h3><p>${esc(it.desc)}</p><div class="btnrow">${owned ? '<span class="st ok-st">設置済み</span>' : `<button type="button" class="btn${t.budget < it.price ? ' alt' : ''}" data-buy="${k}"${t.budget < it.price ? ' disabled' : ''}>${it.price}万円で${it.keep ? '設置' : '用意'}する</button>`}${k === 'item' && t.items ? `<span class="mapnote">手元に${t.items}個</span>` : ''}${k === 'camp' && t.campWeek ? '<span class="mapnote">次の週に実施</span>' : ''}</div></div>`;
+      }).join('')}</div>`;
+  }
+  function teachMe(t) {
     const pupils = sim.students.filter((s) => s.taught && s.status !== 'enrolled').sort((a, b) => (b.gradYear || 0) - (a.gradYear || 0));
     const heroes = pupils.filter((s) => s.status === 'hero').map((s) => sim.heroes[s.heroId]);
-    const apPips = Array.from({ length: 6 }, (_, i) => `<i class="${i < t.ap ? 'on' : ''}"></i>`).join('');
-    const act = (s) => {
-      const dis = t.ap < 1 ? ' disabled' : '';
-      return `<div class="tacts"><span>指導</span><button type="button" data-tact="teach:${s.id}:f"${dis}>戦闘</button><button type="button" data-tact="teach:${s.id}:r"${dis}>救助</button><button type="button" data-tact="teach:${s.id}:i"${dis}>捜査</button><button type="button" data-tact="talk:${s.id}"${dis}>面談</button><button type="button" data-tact="praise:${s.id}"${dis}>ほめる</button></div>`;
-    };
-    const row = (s, i) => `<tr><td class="rk">${i + 1}</td><td class="who"><div>${link('s', s)}${sfavBtn(s)}${sStatus(s)}${s.plan ? `<span class="st${s.plan === 'hero' ? ' ok-st' : ''}">${s.plan === 'hero' ? 'ヒーロー内定' : '別の道へ'}</span>` : ''}${s.recommend ? '<span class="st gold">推薦状</span>' : ''}
-      <small>${s.hname ? `「${esc(s.hname)}」・` : ''}${esc(s.power.name)}・評価 ${Math.round(sim.studentRating(s))}</small>
-      <div class="tmeters"><span>やる気</span>${meter(s.mood ?? 50, 'mood')}<span>信頼</span>${meter(s.trust ?? 40, 'trust')}</div>${act(s)}</div></td></tr>`;
-    const pend = t.pending.map((c) => consultHTML(c)).join('');
-    pane.innerHTML = `<h2>${esc(t.name)}先生<small>${esc(d.name)}・${g ? `${g}年生の担任` : '新しいクラスを待っています'}</small></h2>
-      ${ui.teachMsg ? `<p class="tmsg">${rich(ui.teachMsg)}</p>` : ''}
-      <section class="schhead" style="--sc:${d.color}">
-        <div class="kpis sm"><div class="kpi"><b>${Math.round(t.rep)}</b><span>評判・${esc(sim.teacherTitle())}</span></div><div class="kpi"><b>${cls.length}</b><span>受け持ちの生徒</span></div><div class="kpi"><b>${heroes.length}</b><span>ヒーローになった教え子</span></div><div class="kpi"><b>${t.terms.length}</b><span>送り出したクラス</span></div></div>
-        <div class="ap"><span>指導ポイント</span><span class="pips">${apPips}</span><small>毎週月曜に2回復（最大6）。個別指導・面談・ほめるに1ずつ使います。</small></div>
-      </section>
-      <h3 class="sub">指導方針</h3>
-      <div class="seg" role="group" aria-label="指導方針">${Object.entries(D.plans).map(([k, p]) => `<button type="button" data-plan="${k}" aria-pressed="${t.plan === k}">${esc(p.label)}</button>`).join('')}</div>
-      <p class="mapnote">${esc(D.plans[t.plan].desc)}</p>
-      ${pend ? `<h3 class="sub">生徒からの相談<small>3週間答えないと、生徒が自分で決めます</small></h3>${pend}` : ''}
-      <label class="check"><input type="checkbox" id="consultStop" ${ui.consultStop !== false ? 'checked' : ''}> 相談が来たら一時停止して知らせる</label>
-      <h3 class="sub">クラス名簿<small>評価の高い順</small></h3>
-      ${cls.length ? `<table class="rk-table srk trk"><tbody>${cls.map(row).join('')}</tbody></table>` : '<p class="empty">4月の入学式のあと、新しい1年生の担任になります。</p>'}
-      <h3 class="sub">教え子<small>${pupils.length}名</small></h3>
+    const nx = D.positions[t.pos + 1];
+    const need = t.lv * 120;
+    return `<h3 class="sub">教師レベル ${t.lv}<small>次のレベルまで ${need - t.exp}</small></h3>
+      <div class="meter blue"><span>経験</span><i><b style="width:${(t.exp / need) * 100}%"></b></i><span>${t.exp}/${need}</span></div>
+      <h3 class="sub">技能<small>技能ポイント ${t.sp}・各3段階まで</small></h3>
+      <ul class="list">${Object.entries(D.tskills).map(([k, v]) => { const lv = (t.skills || {})[k] || 0; return `<li><span class="k">${v.label} ${'●'.repeat(lv)}${'○'.repeat(3 - lv)}</span><span>${esc(v.desc)} ${t.sp && lv < 3 ? `<button type="button" class="btn alt sm" data-skill="${k}">覚える</button>` : ''}</span></li>`; }).join('')}</ul>
+      <h3 class="sub">役職：${esc(sim.posLabel())}</h3>
+      <p class="mapnote">${nx ? `次は「${nx.label}」。評判${nx.rep}以上・着任${nx.years}年以上で、3月25日の査定のときに昇進します（着任${sim.year - t.since}年目）。` : 'これ以上の役職はありません。'}</p>
+      ${t.evals.length ? `<ul class="list">${t.evals.slice().reverse().map((e) => `<li><span class="k">${e.y}年度末</span><span>評判${e.rep}・${esc(D.positions[e.pos].label)}　${esc(e.note)}</span></li>`).join('')}</ul>` : ''}
+      <h3 class="sub">教え子<small>${pupils.length}名・ヒーロー${heroes.length}名</small></h3>
       ${pupils.length ? `<table class="rk-table srk"><tbody>${pupils.slice(0, 60).map(studentRow).join('')}</tbody></table>` : '<p class="empty">まだ卒業した教え子はいません。</p>'}
       ${t.terms.length ? `<ul class="list">${t.terms.slice().reverse().map((x) => `<li><span class="k">${x.y}年卒業</span><span>${x.total}名中${x.heroes}名がヒーローに</span></li>`).join('')}</ul>` : ''}
-      <h3 class="sub">担任日誌<small>新しい順</small></h3>
-      <ul class="hist">${t.log.slice(-40).reverse().map((l) => `<li><span>${G.fmtDate(l.y, l.d)}</span><div>${rich(l.t)}</div></li>`).join('') || '<li><div class="mapnote">まだ記録はありません。</div></li>'}</ul>
+      <label class="check"><input type="checkbox" id="consultStop" ${ui.consultStop !== false ? 'checked' : ''}> 相談やお知らせが来たら一時停止する</label>
       <div class="btnrow"><button type="button" class="btn alt" id="teachQuit">教師をやめる</button></div>`;
   }
   function consultHTML(c, inPop) {
@@ -1160,7 +1217,24 @@
   const seenConsult = new Set();
   function checkConsult() {
     const t = sim.teacher;
-    if (!t || !t.pending.length || ui.consultStop === false || skipping || !$('#extra').hidden) return;
+    if (!t || ui.consultStop === false || skipping || !$('#extra').hidden) return;
+    const note = (t.notes || []).find((x) => !seenConsult.has('n' + x.id));
+    if (note) {
+      seenConsult.add('n' + note.id);
+      const wasPlaying = !!timer;
+      stop();
+      const box = $('#extra');
+      box.innerHTML = `<div class="extra-box consult-box" role="dialog" aria-modal="true" aria-labelledby="consultTitle">
+        <div class="extra-mast"><span class="extra-stamp teach">${esc(note.title)}</span><span>${esc(D.academies[t.school].short)}　${esc(t.name)}先生</span></div>
+        <h2 id="consultTitle" class="sr">${esc(note.title)}</h2>
+        <div class="notebody">${rich(note.text).replace(/\n/g, '<br>')}</div>
+        <div class="btnrow"><button type="button" class="btn" id="extraGo">続ける</button></div></div>`;
+      box.hidden = false;
+      box.dataset.resume = wasPlaying ? '1' : '';
+      clearInterval(extraTimer);
+      return;
+    }
+    if (!t.pending.length) return;
     const c = t.pending.find((x) => !seenConsult.has(x.id));
     if (!c) return;
     seenConsult.add(c.id);
@@ -1543,8 +1617,14 @@
         if (currentPane() === 'teach') renderTeach();
         return;
       }
-      const pl = e.target.closest('[data-plan]');
-      if (pl) { sim.setPlan(pl.dataset.plan); ui.teachMsg = ''; renderTeach(); return; }
+      const tsb = e.target.closest('[data-tsub]');
+      if (tsb) { ui.tsub = tsb.dataset.tsub; ui.teachMsg = ''; renderTeach(); return; }
+      const pr = e.target.closest('[data-preset]');
+      if (pr) { sim.setPreset(pr.dataset.preset); ui.teachMsg = ''; renderTeach(); return; }
+      const by = e.target.closest('[data-buy]');
+      if (by) { ui.teachMsg = sim.buy(by.dataset.buy) || ''; renderTeach(); return; }
+      const sk = e.target.closest('[data-skill]');
+      if (sk) { ui.teachMsg = sim.learnSkill(sk.dataset.skill) || ''; renderTeach(); return; }
       const ta = e.target.closest('[data-tact]');
       if (ta) { const [k, sid, area] = ta.dataset.tact.split(':'); ui.teachMsg = sim.teacherAct(k, +sid, area) || ''; renderTeach(); return; }
       if (id === 'teachStart') { sim.startTeaching($('#tName').value.trim(), +$('#tSchool').value); ui.teachMsg = ''; renderTeach(); saveWorld(); return; }
@@ -1575,6 +1655,7 @@
     document.addEventListener('change', (e) => {
       if (e.target.id === 'noExtra') { ui.noExtra = e.target.checked; save(); }
       if (e.target.id === 'consultStop') { ui.consultStop = e.target.checked; save(); }
+      if (e.target.dataset && e.target.dataset.slot !== undefined) { sim.setSlot(+e.target.dataset.slot, e.target.value); sim.teacher.plan = 'custom'; renderTeach(); }
       if (e.target.id === 'autoYear') { ui.autoYear = e.target.checked; save(); if (!ui.autoYear) cancelCountdown(); }
     });
     document.addEventListener('keydown', (e) => {
