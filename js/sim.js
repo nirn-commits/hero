@@ -252,7 +252,7 @@
 
       if (type === 'villain') {
         if (!v) {
-          const free = this.villains.filter((x) => x.status === 'free' && x.kind === 'villain' && !x.isBoss && (!x.org || x.orgRank === 'member'));
+          const free = this.villains.filter((x) => x.status === 'free' && x.kind === 'villain' && !x.isBoss && !x.scheming && (!x.org || x.orgRank === 'member'));
           if (!free.length) return this.incident('petty');
           v = R.wpick(free, (x) => 10 + x.notoriety);
         }

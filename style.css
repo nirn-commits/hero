@@ -813,3 +813,15 @@ figcaption small { font-weight: 400; color: var(--mute); margin-left: 6px; font-
 }
 .rk-table td.sc { white-space: nowrap; }
 #teachBtn[aria-pressed="true"] { background: var(--good); color: #fff; border-color: var(--good); }
+
+/* ===== 悪の系譜・街・白書 ===== */
+.arclist li.dark { border-left-color: var(--villain); }
+.arcdots.dark { color: var(--villain); }
+.arcread.dark h4 { color: var(--villain); }
+.town { margin-top: 6px; }
+.town .dl { font-size: 0.82rem; }
+.town .voices { margin-top: 6px; }
+.white p { line-height: 1.95; margin: 0 0 10px; text-indent: 1em; }
+.kpi small { display: block; font-size: 0.72rem; margin-top: 2px; }
+.kpi small.up { color: var(--good); } .kpi small.down { color: var(--alert); } .kpi small.same { color: var(--mute); }
+.meter small.up { color: var(--good); } .meter small.down { color: var(--alert); }

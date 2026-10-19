@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-for (const f of ['core', 'data_names', 'data_names2', 'data_world', 'data_powers', 'data_people', 'data_events', 'data_story', 'data_more', 'data_more2', 'data_bond', 'data_voice', 'data_voice2', 'data_drama', 'data_school', 'data_teacher', 'data_memory', 'data_arc', 'data_villain', 'generator', 'sim', 'story', 'bond', 'voice', 'drama', 'academy', 'teacher', 'teacher2', 'memory', 'arc', 'villain2']) {
+for (const f of ['core', 'data_names', 'data_names2', 'data_world', 'data_powers', 'data_people', 'data_events', 'data_story', 'data_more', 'data_more2', 'data_bond', 'data_voice', 'data_voice2', 'data_drama', 'data_school', 'data_teacher', 'data_memory', 'data_arc', 'data_villain', 'data_saga', 'generator', 'sim', 'story', 'bond', 'voice', 'drama', 'academy', 'teacher', 'teacher2', 'memory', 'arc', 'villain2', 'saga']) {
   vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'js', f + '.js'), 'utf8'), { filename: f + '.js' });
 }
 const G = globalThis.HG;
@@ -51,3 +51,5 @@ console.log('active cast', sim.activeCast().length, 'by year', JSON.stringify(si
 console.log('--- arcs', sim.arcs.length, JSON.stringify(sim.arcs.reduce((m, a) => ((m[a.type + ':' + a.res] = (m[a.type + ':' + a.res] || 0) + 1), m), {})));
 const fa = sim.arcs.filter((a) => a.done && a.res !== '中断').slice(-1)[0];
 if (fa) for (const id of fa.news) console.log(plain(sim.news[id].text));
+console.log('--- saga feuds', sim.feuds.length, 'varcs', JSON.stringify(sim.varcs.reduce((m, a) => ((m[a.type + ':' + a.res] = (m[a.type + ':' + a.res] || 0) + 1), m), {})), 'citizens', sim.citizens.length, 'classic', sim.log.filter((l) => l.t === 'classic').length, 'gen arcs', JSON.stringify(sim.arcs.filter((a) => a.type === 'avenge' || a.type === 'fallenFriend').map((a) => a.type + ':' + a.res)), 'legends', Object.values(sim.towns).reduce((a, t) => a + t.legends.length, 0), 'statues', Object.values(sim.towns).reduce((a, t) => a + t.statues.length, 0), 'wp', sim.whitepapers.length);
+for (const n of sim.news.filter((n) => n && /悪の系譜|受け継がれた|銅像|名誉県民|ファンクラブ|守り神|太陽|盾|英雄」|誇り|灯台|かつての/.test(n.text)).slice(-10)) console.log(G.fmtDate(n.y, n.d), plain(n.text).slice(0, 160));

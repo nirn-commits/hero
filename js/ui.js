@@ -16,10 +16,10 @@
   };
   const REC_GROUPS = [
     ['ヒーロー', [['death', '殉職'], ['retire', '引退'], ['scandal', 'スキャンダル'], ['hof', '殿堂入り'], ['legacy', '二世'], ['inherit', '継承'], ['milestone', '節目'], ['comeback', '現役復帰'], ['after', '引退後の消息'], ['record', '新記録'], ['mentor', '師弟'], ['cast', '中心人物']]],
-    ['物語', [['saga', '宿敵の決着'], ['boss', '黒幕'], ['fallen', '闇堕ち'], ['reform', '改心'], ['kaiju', '怪獣'], ['org', '組織壊滅'], ['serial', '連続事件'], ['vally', 'ヴィランの加勢'], ['arc', '連載の物語']]],
+    ['物語', [['saga', '宿敵の決着'], ['boss', '黒幕'], ['fallen', '闇堕ち'], ['reform', '改心'], ['kaiju', '怪獣'], ['org', '組織壊滅'], ['serial', '連続事件'], ['vally', 'ヴィランの加勢'], ['arc', '連載の物語'], ['varc', '悪の系譜'], ['classic', '名勝負']]],
     ['社会', [['era', '時代'], ['policy', '世論・制度'], ['agency', '事務所'], ['marry', '結婚'], ['world', '世界大会'], ['foreign', '国際手配']]],
     ['学園', [['grad', '卒業と進路'], ['school', '学園の出来事']]],
-    ['年表', [['records', '歴代記録'], ['chronicle', '年代記'], ['awards', '歴代表彰'], ['tourney', '全国大会'], ['months', '月間1位'], ['cover', '週刊誌の表紙']]],
+    ['年表', [['white', 'ヒーロー白書'], ['records', '歴代記録'], ['chronicle', '年代記'], ['awards', '歴代表彰'], ['tourney', '全国大会'], ['months', '月間1位'], ['cover', '週刊誌の表紙']]],
   ];
   const REC_TYPES = REC_GROUPS.flatMap((g) => g[1]);
   const MS_LABEL = { cap1: '初検挙', cap: '検挙', cases: '出動', rescues: '救助', top1: '初の1位', career: '活動年数', streak: '連続トップ100' };
@@ -104,7 +104,7 @@
     for (let i = 0; i < 100 && saving; i++) await new Promise((r) => setTimeout(r, 30));
     await saveWorld();
   }
-  function updateSlotBtn() { $('#slotBtn').textContent = `セーブ：スロット${ui.slot}`; }
+  function updateSlotBtn() { $('#slotBtn').textContent = `セーブ${ui.slot}`; }
   async function showSlots() {
     cancelCountdown();
     const metas = {};
@@ -695,7 +695,7 @@
       const local = sim.ranked.filter((h) => h.pref === ui.pref);
       const vs = sim.villains.filter((v) => v.status === 'free' && v.kind === 'villain' && v.pref === ui.pref);
       const bad = sim.villains.filter((v) => v.kind === 'villain' && v.pref === ui.pref).sort((a, b) => b.crimes - a.crimes)[0];
-      detail = `<p class="mapnote"><b>${ui.pref}</b>　事件${sim.st.pref[ui.pref] || 0}件・ヒーロー${local.length}名・逃亡中ヴィラン${vs.length}名${local[0] ? `・地元の守護者 ${hlink(local[0])}（${local[0].rank}位）` : ''}${bad && bad.crimes ? `・ご当地の悪 ${link('v', bad)}（犯行${bad.crimes}回）` : ''}</p>`;
+      detail = `<p class="mapnote"><b>${ui.pref}</b>　事件${sim.st.pref[ui.pref] || 0}件・ヒーロー${local.length}名・逃亡中ヴィラン${vs.length}名${local[0] ? `・ランキング最上位 ${hlink(local[0])}（${local[0].rank}位）` : ''}${bad && bad.crimes ? `・ご当地の悪 ${link('v', bad)}（犯行${bad.crimes}回）` : ''}</p>${townHTML(ui.pref)}`;
     }
     return `<div class="mapwrap"><svg class="tilemap" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="都道府県別の${{ inc: '事件数', hero: 'ヒーロー数', villain: '逃亡中ヴィラン数' }[ui.mapMetric]}">${cells}</svg></div><div class="maplegend">${steps}</div>${detail}`;
   }
@@ -823,6 +823,7 @@
     counts.months = sim.monthTop.filter((m) => inYear(m.y)).length;
     counts.tourney = sim.tourneys.filter((x) => inYear(x.y)).length;
     counts.cover = sim.covers.filter((c) => inYear(c.y)).length;
+    counts.white = (sim.whitepapers || []).filter((w) => inYear(w.y)).length;
     counts.chronicle = sim.chronicles.length;
     counts.records = Object.values(sim.records).filter((r) => r.id !== null).length;
     $('#recTypes').innerHTML = REC_GROUPS.map(([g, items]) => `<div class="recgroup"><span class="recg">${g}</span>${items.map(([t, l]) => `<button type="button" data-rec="${t}" aria-pressed="${ui.recType === t}">${l}<b>${counts[t] || 0}</b></button>`).join('')}</div>`).join('');
@@ -844,6 +845,11 @@
       const cnt = {};
       for (const c of sim.covers) cnt[c.h] = (cnt[c.h] || 0) + 1;
       body.innerHTML = list.length ? `<div class="tablewrap"><table class="rec"><thead><tr><th>号</th><th>表紙</th><th>見出し</th><th>通算</th></tr></thead><tbody>${list.map((c) => `<tr><td class="dt">Vol.${c.vol}<br>${G.fmtDate(c.y, c.d)}</td><td>${hlink(sim.heroes[c.h])}</td><td>${esc(c.head)}</td><td class="nu">${cnt[c.h]}回</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">週刊ヒーローは毎週月曜日に発売されます。</p>';
+      return;
+    }
+    if (t === 'white') {
+      const ws = (sim.whitepapers || []).filter((w) => inYear(w.y)).slice().reverse();
+      body.innerHTML = ws.length ? `<ul class="list">${ws.map((w) => `<li><span class="k">${w.y}年版</span><span>${esc(w.era)}・事件${num(w.total)}件・支持率${w.ap}% <button type="button" class="linkbtn" data-white="${w.y}">読む</button></span></li>`).join('')}</ul>` : '<p class="empty">白書は毎年12月31日にまとめられます。</p>';
       return;
     }
     if (t === 'records') {
@@ -894,6 +900,8 @@
       boss: ['日付', '黒幕', '結果', '最後の一撃', '参戦', (l) => `${date(l)}<td>${Vv(l.v)}</td><td>${l.res === '撃破' ? '<span class="ok">撃破</span>' : `<span class="ng">${esc(l.res)}</span>`}</td><td>${H(l.h)}</td><td class="nu">${l.heroes.length}名</td>`],
       era: ['年', '新しい時代', 'それまで', '', '', (l) => `<td class="dt">${l.y}年</td><td><b>${esc(l.name)}</b></td><td>${esc(l.prev)}</td><td></td><td></td>`],
       policy: ['日付', '出来事', '支持率', '', '', (l) => `${date(l)}<td>${esc(l.kind)}</td><td class="nu">${l.ap}%</td><td></td><td></td>`],
+      varc: ['結末', '題名', 'ヴィラン', '種類', '結果', (l) => `${date(l)}<td>『${esc(l.title)}』</td><td>${Vv(l.v)}${l.o !== null && l.o !== undefined ? '<br><small>' + link('v', sim.villains[l.o]) + '</small>' : ''}</td><td>${esc(D.varcs[l.type].label)}</td><td>${l.res === '成就' ? '<span class="ng">成就</span>' : '<span class="ok">阻止</span>'} <button type="button" class="linkbtn" data-varc="${(sim.varcs.find((a) => a.v === l.v && a.title === l.title && a.ey === l.y) || {}).id}">読む</button></td>`],
+      classic: ['日付', '名勝負', 'ヒーロー', 'ヴィラン', '', (l) => `${date(l)}<td><b>${esc(l.kind)}</b>${l.title ? `<br><small>『${esc(l.title)}』${l.n ? `（${l.n}${l.kind === '宿敵との決着' ? '戦' : '年越し'}）` : ''}</small>` : ''}${l.o !== undefined && l.o !== null ? `<br><small>${l.kind === '世代をまたぐ因縁' ? '受け継いだ相手' : 'かつての姿'}：${H(l.o)}</small>` : ''}</td><td>${H(l.h)}</td><td>${Vv(l.v)}</td><td></td>`],
       arc: ['完結', '題名', '主人公', '種類', '結末', (l) => `${date(l)}<td>『${esc(l.title)}』</td><td>${H(l.h)}</td><td>${esc(D.arcs[l.type].label)}</td><td>${l.res === '成就' ? '<span class="ok">完結</span>' : '<span class="ng">未完のまま幕</span>'} <button type="button" class="linkbtn" data-arc="${(sim.arcs.find((a) => a.h === l.h && a.title === l.title && a.ey === l.y) || {}).id}">読む</button></td>`],
       cast: ['認定', '人物', 'きっかけ', '現在', '', (l) => { const x = l.h !== undefined ? sim.heroes[l.h] : sim.students[l.s]; const cur = l.h !== undefined ? (x.rank ? `${x.rank}位` : STATUS[x.status] || '') : x.status === 'hero' ? `ヒーロー ${link('h', sim.heroes[x.heroId])}` : SSTATUS[x.status]; return `${date(l)}<td>${l.h !== undefined ? H(l.h) : slinkFull(x)}</td><td><span class="st cast">◆ ${esc(D.castReasons[l.reason].tag)}</span></td><td>${cur}</td><td></td>`; }],
       grad: ['卒業', '生徒', '学校', '進路', '現在', (l) => { const st = sim.students[l.s]; const hh = l.h !== null ? sim.heroes[l.h] : null; return `<td class="dt">${l.y}年</td><td>${slinkFull(st)}</td><td>${esc(D.academies[l.sc].short)}</td><td>${hh ? '<span class="ok">ヒーロー</span>' : esc(l.career || st.road || '')}</td><td>${hh ? `${hlink(hh)}${hh.rank ? ` ${hh.rank}位` : statusChip(hh)}` : st.status === 'villain' ? `<span class="ng">ヴィラン</span> ${link('v', sim.villains[st.villainId])}` : st.status === 'hero' ? hlink(sim.heroes[st.heroId]) : ''}</td>`; }],
@@ -902,7 +910,7 @@
     }[t];
     const head = cols.slice(0, 5).map((c) => `<th>${c}</th>`).join('');
     const shown = rows.slice(0, ui.recLimit);
-    const withNews = ['scandal', 'death', 'saga', 'boss', 'policy', 'serial', 'vally', 'record', 'school', 'cast'].includes(t);
+    const withNews = ['scandal', 'death', 'saga', 'boss', 'policy', 'serial', 'vally', 'record', 'school', 'cast', 'classic'].includes(t);
     body.innerHTML = `<div class="tablewrap"><table class="rec"><thead><tr>${head}</tr></thead><tbody>${shown.map((l) => `<tr>${cols[5](l)}</tr>${withNews ? `<tr class="sub"><td></td><td colspan="4">${newsLine(l)}</td></tr>` : ''}`).join('')}</tbody></table></div>
       ${rows.length > shown.length ? `<button type="button" class="more" data-more="rec">さらに表示（残り${rows.length - shown.length}件）</button>` : ''}`;
   }
@@ -1386,7 +1394,8 @@
   function arcCard() {
     const on = sim.ongoingArcs ? sim.ongoingArcs() : [];
     const fin = (sim.arcs || []).filter((a) => a.done && a.res !== '中断').slice(-4).reverse();
-    if (!on.length && !fin.length) return '';
+    const von = sim.ongoingVarcs ? sim.ongoingVarcs() : [];
+    if (!on.length && !fin.length && !von.length) return '';
     const row = (a) => {
       const h = sim.heroes[a.h];
       const last = a.news.length ? sim.news[a.news[a.news.length - 1]] : null;
@@ -1396,6 +1405,7 @@
     };
     return `<figure class="fig"><figcaption><span>連載中の物語<small>推しや中心人物を主人公に、数話かけて進みます</small></span><button type="button" class="linkbtn" data-gorec="arc">これまでの物語</button></figcaption>
       ${on.length ? `<ul class="arclist">${on.map(row).join('')}</ul>` : '<p class="mapnote">いまは連載中の物語はありません。推しや中心人物に、やがて新しい物語が始まります。</p>'}
+      ${von.length ? `<h5>闇の連載　悪の系譜</h5><ul class="arclist">${von.map(varcRow).join('')}</ul>` : ''}
       ${fin.length ? `<h5>最近完結した物語</h5><ul class="arclist done">${fin.map(row).join('')}</ul>` : ''}</figure>`;
   }
   function showArc(a) {
@@ -1558,6 +1568,8 @@
         <section class="pcard wide" id="vp-graph"><h4>相関図</h4>${villainGraph(v)}</section>
         <section class="pcard wide" id="vp-vs"><h4>ヒーローとの対戦成績<small>（${totW}勝${totL}敗）</small></h4>
           ${vs.length ? `<table class="rec"><thead><tr><th>ヒーロー</th><th>対戦</th><th>${esc(v.name)}から見た成績</th></tr></thead><tbody>${vs.slice(0, 12).map(([h, r]) => `<tr><td>${hlink(h)}</td><td class="nu">${r[0] + r[1]}回</td><td><span class="vsbar"><i class="w" style="width:${(r[0] / (r[0] + r[1])) * 100}%"></i></span> ${r[0]}勝${r[1]}敗</td></tr>`).join('')}</tbody></table>` : '<p class="mapnote">まだヒーローとの対戦記録はありません。</p>'}</section>
+        ${(v.varcs || []).length ? `<section class="pcard wide"><h4>悪の系譜</h4><ul class="arclist">${v.varcs.map((id) => varcRow(sim.varcs[id])).join('')}</ul></section>` : ''}
+        ${v.vmentor !== undefined ? `<section class="pcard"><h4>師匠</h4><p class="bio">${link('v', sim.villains[v.vmentor])}に手口を叩き込まれた。</p></section>` : ''}
         <section class="pcard wide" id="vp-life"><h4>経歴</h4>${villainTimeline(v)}</section>
       </div>
       <h4 class="sect" id="vp-hist">記録された事件</h4>${histList(v)}`);
@@ -1585,6 +1597,82 @@
     if (k === 'v') return x.kind === 'kaiju' ? `<div class="pk-h"><span class="threat tS">S</span><b>${esc(x.name)}</b></div><p>怪獣・${esc(VSTATUS[x.status] || '')}</p>` : `<div class="pk-h"><span class="threat t${x.threat}">${x.threat}</span><b>${esc(x.name)}</b><span class="pk-r">${esc(VSTATUS[x.status] || '')}</span></div><p>${esc(x.power.name)}${x.org !== null ? '・' + esc(sim.orgs[x.org].name) : ''}</p><p class="pk-m">${x.alias ? '「' + esc(x.alias) + '」・' : ''}懸賞金 ${yen2(sim.bounty(x))}</p>`;
     if (k === 's') return `<div class="pk-h"><b>${esc(x.real)}</b>${x.hname ? `<span class="pk-r">「${esc(x.hname)}」</span>` : ''}</div><p>${esc(D.academies[x.school].short)}${x.status === 'enrolled' ? ` ${x.grade}年` : ''}・${esc(x.power.name)}</p>`;
     return '';
+  }
+
+  // ---------- 闇の連載（ヴィラン側の物語） ----------
+  const varcProg = (a) => { const n = D.varcs[a.type].stages.length + 1; const k = a.done ? n : a.stage; return `<span class="arcdots dark" aria-label="${k}/${n}話">${'●'.repeat(k)}${'○'.repeat(n - k)}</span>`; };
+  const VRES = { 成就: '成就', 失敗: '阻止された', 中断: '中断' };
+  function varcRow(a) {
+    const v = sim.villains[a.v];
+    const last = a.news.length ? sim.news[a.news[a.news.length - 1]] : null;
+    return `<li class="dark"><div class="arch"><b>『${esc(a.title)}』</b>${varcProg(a)}${a.done ? `<span class="st${a.res === '成就' ? ' bad' : ''}">${VRES[a.res] || ''}</span>` : '<span class="st bad">暗躍中</span>'}</div>
+      <div class="arcsub">${link('v', v)}${a.o !== null ? ` と ${link('v', sim.villains[a.o])}` : ''}　<small>${esc(D.varcs[a.type].label)}</small></div>
+      ${last ? `<p class="arclast">${rich(last.text.replace(/^【[^】]+】/, ''))}</p>` : ''}<button type="button" class="linkbtn" data-varc="${a.id}">通して読む</button></li>`;
+  }
+  function showVarc(a) {
+    const parts = a.news.map((id) => sim.news[id]).filter(Boolean);
+    openModal(`<h2 class="yearend-title" id="modalTitle">悪の系譜『${esc(a.title)}』</h2>
+      <p class="pf-sub">${esc(D.varcs[a.type].label)}・${link('v', sim.villains[a.v])}・${a.y}年${a.done ? `〜${a.ey}年　${VRES[a.res]}` : '　暗躍中'}</p>
+      <div class="arcread dark">${parts.map((n) => { const m = n.text.match(/^【([^】]+)】/); return `<section><h4>${esc(m ? m[1].replace('悪の系譜：' + a.title, '').replace(/^[　・]/, '') || '本編' : '本編')}<small>${G.fmtDate(n.y, n.d)}</small></h4><p>${rich(n.text.replace(/^【[^】]+】/, ''))}</p></section>`; }).join('') || '<p class="mapnote">古い記事は保存容量のため省略されています。</p>'}</div>`);
+  }
+
+  // ---------- 街と人々 ----------
+  function townHTML(p) {
+    const t = (sim.towns || {})[p];
+    const g = t && t.guardian !== null ? sim.heroes[t.guardian] : null;
+    const rnd = localRng(`${sim.seed}:town:${p}:${sim.year}`);
+    const pick = (a) => a[Math.floor(rnd() * a.length)];
+    const voices = [];
+    for (let i = 0; i < 2; i++) voices.push(G.fill(g && g.status === 'active' ? pick(D.town.voices) : pick(D.town.noGuardian), { g: g ? g.name : '' }));
+    const cits = (sim.citizens || []).filter((c) => c.pref === p).slice(-4).reverse();
+    const rows = [];
+    if (g) rows.push(['今年の守護者', `${hlink(g)}${t.gy > 1 ? `（${t.gy}年連続）` : ''}${g.legendTitle ? `「${esc(g.legendTitle)}」` : ''}`]);
+    if (t && t.legends.length) rows.push(['伝説', t.legends.map((l) => `${hlink(sim.heroes[l.h])}「${esc(l.title)}」（${l.y}年）`).join('、')]);
+    if (t && t.statues.length) rows.push(['銅像', t.statues.map((s) => `${hlink(sim.heroes[s.h])}（${s.y}年）`).join('、')]);
+    if (t && t.honors.length) rows.push(['名誉県民', t.honors.map((s) => hlink(sim.heroes[s.h])).join('、')]);
+    if (cits.length) rows.push(['救われた人々', cits.map((c) => `${esc(c.job)}の${esc(c.name)}さん（${c.y}年、${link('h', sim.heroes[c.savedBy])}に救われる）`).join('<br>')]);
+    return `<div class="town">${rows.length ? `<dl class="dl">${rows.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>` : ''}<ul class="voices">${voices.map((v) => `<li>${esc(v)}</li>`).join('')}</ul></div>`;
+  }
+
+  // ---------- ヒーロー白書 ----------
+  const INC_LABEL = { petty: '街の事件', rescue: '救助', mystery: '捜査', weird: '怪事件', villain: 'ヴィラン犯行', kaiju: '怪獣', disaster: '大災害', org: '組織テロ', raid: '一斉摘発' };
+  function showWhite(y) {
+    const wps = sim.whitepapers || [];
+    const w = wps.find((x) => x.y === y);
+    if (!w) return;
+    const p = wps.find((x) => x.y === y - 1);
+    const pct = (a, b) => (b ? Math.round(((a - b) / b) * 100) : 0);
+    const delta = (a, b, unit = '', inv) => { if (!p) return ''; const d = a - b; if (!d) return '<small class="same">±0</small>'; const good = inv ? d < 0 : d > 0; return `<small class="${good ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d}${unit}</small>`; };
+    const solved = (x) => { const o = x.out; const t = o.great + o.win + o.fail + o.bad; return t ? Math.round(((o.great + o.win) / t) * 100) : 0; };
+    const k = (v, l, d) => `<div class="kpi"><b>${v}</b><span>${l}</span>${d || ''}</div>`;
+    const maxInc = Math.max(1, ...Object.values(w.inc));
+    const incBars = Object.entries(w.inc).sort((a, b) => b[1] - a[1]).map(([t, n]) => `<div class="meter blue"><span>${INC_LABEL[t] || t}</span><i><b style="width:${(n / maxInc) * 100}%"></b></i><span>${n}${p && p.inc[t] !== undefined ? `<small class="${n >= p.inc[t] ? 'up' : 'down'}"> ${n >= p.inc[t] ? '+' : ''}${n - p.inc[t]}</small>` : ''}</span></div>`).join('');
+    const els = Object.entries(w.el).sort((a, b) => b[1] - a[1]);
+    const elBars = els.slice(0, 8).map(([e, n]) => `<div class="meter"><span>${esc(D.elemLabel[e] || e)}系</span><i><b style="width:${(n / 50) * 100 * 3}%"></b></i><span>${n}名</span></div>`).join('');
+    // 文章
+    const para = [];
+    const tot = w.total, ptot = p ? p.total : 0;
+    para.push(`${y}年は「${esc(w.era)}」の一年だった。事件は${num(tot)}件${p ? `で、前年から${Math.abs(pct(tot, ptot))}%${tot >= ptot ? '増えた' : '減った'}` : 'だった'}。解決率は${solved(w)}%${p ? `（前年${solved(p)}%）` : ''}。`);
+    const topInc = Object.entries(w.inc).sort((a, b) => b[1] - a[1])[0];
+    if (p) {
+      const grow = Object.keys(w.inc).map((t) => [t, (w.inc[t] || 0) - (p.inc[t] || 0)]).sort((a, b) => b[1] - a[1])[0];
+      if (grow && grow[1] > 0) para.push(`最も増えたのは「${INC_LABEL[grow[0]] || grow[0]}」で、前年より${grow[1]}件多かった。`);
+    } else if (topInc) para.push(`最も多かったのは「${INC_LABEL[topInc[0]]}」だった。`);
+    if (w.pref.length) para.push(`事件が集中したのは${w.pref.slice(0, 3).map(([pp, n]) => `${pp}（${n}件）`).join('、')}。${w.calm.length ? `一方、${w.calm.slice(0, 3).join('・')}では大きな事件は報告されなかった。` : ''}`);
+    if (els.length) {
+      const pe = p ? p.el : {};
+      const rise = els.map(([e, n]) => [e, n - (pe[e] || 0)]).sort((a, b) => b[1] - a[1])[0];
+      para.push(`上位50名で最も多い能力は${esc(D.elemLabel[els[0][0]] || '')}系（${els[0][1]}名）。${p && rise[1] > 1 ? `${esc(D.elemLabel[rise[0]] || '')}系が前年より${rise[1]}名増え、勢いを見せた。` : ''}`);
+    }
+    para.push(`世論の支持率は平均${w.ap}%${p ? `（前年${p.ap}%）` : ''}。${w.ap >= 65 ? 'ヒーローへの信頼は厚い。' : w.ap < 45 ? 'ヒーローへの視線は厳しさを増している。' : ''}殉職者は${w.deaths}名、スキャンダルは${w.scandals}件だった。`);
+    para.push(`ヴィランは新たに${w.newV}名が確認され、年末時点で${w.freeV}名が逃亡中。活動中の組織は${w.orgs}。${w.varcs ? `裏社会では${w.varcs}本の「悪の系譜」が実を結んだ。` : ''}`);
+    para.push(`養成校からは${w.grads}名が巣立ち、${w.gradH}名がプロになった。上位100名の平均年齢は${w.age}歳${p ? `（前年${p.age}歳）` : ''}。${w.champ !== null ? `年間1位は${link('h', sim.heroes[w.champ])}。` : ''}`);
+    openModal(`<h2 class="yearend-title" id="modalTitle">${y}年版 ヒーロー白書</h2>
+      <p class="pf-sub">超常対策庁 編・${esc(w.era)}</p>
+      <div class="kpis">${k(num(tot), '事件', delta(tot, ptot, '件', true))}${k(solved(w) + '%', '解決率', p ? delta(solved(w), solved(p), 'pt') : '')}${k(w.captures, 'ヴィラン検挙', p ? delta(w.captures, p.captures) : '')}${k(w.deaths, '殉職', p ? delta(w.deaths, p.deaths, '', true) : '')}${k(w.ap + '%', '支持率（平均）', p ? delta(w.ap, p.ap, 'pt') : '')}${k(w.active, '現役ヒーロー', p ? delta(w.active, p.active) : '')}${k(w.freeV, '逃亡中ヴィラン', p ? delta(w.freeV, p.freeV, '', true) : '')}${k(w.debuts, '新人', p ? delta(w.debuts, p.debuts) : '')}</div>
+      <div class="white">${para.map((x) => `<p>${x}</p>`).join('')}</div>
+      <div class="pf-cards"><section class="pcard"><h4>事件の内訳<small>${p ? '右は前年との差' : ''}</small></h4>${incBars}</section><section class="pcard"><h4>上位50名の能力系統</h4>${elBars}</section></div>
+      <div class="btnrow">${wps.filter((x) => x.y !== y).slice(-6).map((x) => `<button type="button" class="btn alt sm" data-white="${x.y}">${x.y}年版</button>`).join('')}</div>`);
   }
 
   // ---------- 詳細 ----------
@@ -1834,7 +1922,7 @@
       <h4>年間ランキング トップ10</h4>
       <table class="rk-table"><tbody>${a.top10.map((id, i) => { const h = sim.heroes[id]; return `<tr><td class="rk">${i + 1}</td><td class="mv"></td><td class="who"><div class="whoin">${emblem(h)}<div>${link('h', h)}<small>${esc(h.power.name)}・${esc(h.pref)}</small></div></div></td><td class="sc">${num(score(h))}</td></tr>`; }).join('')}</tbody></table>
       <p class="countdown" id="countdown"></p>
-      <div class="btnrow"><button type="button" class="btn" id="nextYearBtn">${a.year + 1}年へ進む</button><button type="button" class="btn alt" id="stayBtn">ここで止める</button><button type="button" class="btn alt" data-act="new">新しい世界で始める</button></div>
+      <div class="btnrow"><button type="button" class="btn" id="nextYearBtn">${a.year + 1}年へ進む</button><button type="button" class="btn alt" id="stayBtn">ここで止める</button><button type="button" class="btn alt" data-act="new">新しい世界で始める</button>${(sim.whitepapers || []).some((w) => w.y === a.year) ? `<button type="button" class="btn alt" data-white="${a.year}">${a.year}年版 ヒーロー白書を読む</button>` : ''}</div>
       <label class="check"><input type="checkbox" id="autoYear" ${ui.autoYear ? 'checked' : ''}> 毎年、自動で次の年へ進む</label>`);
     if (ui.autoYear && ui.speed > 0) {
       let left = 15;
@@ -1941,6 +2029,10 @@
         if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = '本当に無効にする（担任の記録は残り、再び有効にすると続きから）'; return; }
         sim.teacherMode = false; updateTeachTab(); renderSchool(); saveWorld(); return;
       }
+      const vab = e.target.closest('[data-varc]');
+      if (vab) { cancelCountdown(); showVarc(sim.varcs[+vab.dataset.varc]); return; }
+      const wb = e.target.closest('[data-white]');
+      if (wb) { cancelCountdown(); showWhite(+wb.dataset.white); return; }
       const arcb = e.target.closest('[data-arc]');
       if (arcb) { cancelCountdown(); showArc(sim.arcs[+arcb.dataset.arc]); return; }
       if (id === 'newBtn' || e.target.dataset.act === 'new') { showNewWorld(); return; }
