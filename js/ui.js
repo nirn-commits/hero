@@ -487,7 +487,7 @@
       <h2>${sim.year}年の概況<small>${G.fmtDate(sim.year, lastDay())}時点</small></h2>
       ${banners()}
       <div class="kpis">${k(Math.round(sim.approval) + '%', 'ヒーロー支持率', sim.approval < 40 ? 'bad' : '')}${k(num(inc), '事件')}${k(handled ? Math.round((solved / handled) * 100) + '%' : '–', '解決率')}${k(st.captures, 'ヴィラン検挙')}${k(st.scandals, 'スキャンダル', 'warn')}${k(st.deaths, '殉職', st.deaths ? 'bad' : '')}${k(sim.ranked.length, '現役ヒーロー')}${k(freeV, '逃亡中ヴィラン')}${k(orgs, '活動中の組織')}</div>
-      ${pfNav([['d-front', '一面'], ['d-arc', '連載'], ['d-cast', '中心人物'], ['d-school', '学園'], ['d-pred', '予想'], ['d-map', '地図'], ['d-chart', 'グラフ'], ['d-events', '出来事']]).replace('pfnav', 'pfnav dashnav')}
+      ${pfNav([['d-front', '一面'], ['d-arc', '連載'], ['d-cast', '中心人物'], ['d-school', '学園'], ['d-pred', '予想'], ['d-map', '地図'], ['d-dmg', '被害'], ['d-chart', 'グラフ'], ['d-events', '出来事']]).replace('pfnav', 'pfnav dashnav')}
       <div class="dash-grid">
         ${anc(frontPage(), 'd-front')}
         ${anc(predictCard(), 'd-pred')}
@@ -503,10 +503,11 @@
         </figure>
         <figure class="fig" id="d-map">
           <figcaption><span>地域別の状況</span>
-            <span class="seg sm" role="group" aria-label="地図の指標">${[['inc', '事件数'], ['hero', 'ヒーロー数'], ['villain', 'ヴィラン']].map(([m, l]) => `<button type="button" data-map="${m}" aria-pressed="${ui.mapMetric === m}">${l}</button>`).join('')}</span></figcaption>
+            <span class="seg sm" role="group" aria-label="地図の指標">${[['inc', '事件数'], ['hero', 'ヒーロー数'], ['villain', 'ヴィラン'], ['dmg', '被害額']].map(([m, l]) => `<button type="button" data-map="${m}" aria-pressed="${ui.mapMetric === m}">${l}</button>`).join('')}</span></figcaption>
           ${tileMap()}
         </figure>
         ${safetyCard()}
+        ${damageCard()}
         <figure class="fig" id="d-chart">
           <figcaption><span>トップ4の順位推移（${sim.year}年）</span></figcaption>
           ${bumpChart()}
@@ -674,6 +675,7 @@
     for (const p of D.prefs) v[p.name] = 0;
     if (m === 'inc') Object.assign(v, sim.st.pref);
     else if (m === 'hero') for (const h of sim.ranked) v[h.pref]++;
+    else if (m === 'dmg') { sim.ensureDmg(); for (const [p, d] of Object.entries(sim.st.dmgPref)) if (p in v) v[p] = Math.round(d.m * 10) / 10; }
     else for (const x of sim.villains) if (x.status === 'free' && x.kind === 'villain') v[x.pref]++;
     return v;
   }
@@ -684,7 +686,7 @@
     const hi = [0, 1, 2, 3, 4].map((b) => Math.ceil((max * b) / 4));
     const bin = (x) => (x <= 0 ? 0 : hi.findIndex((h, b) => b > 0 && x <= h));
     const C = 30, W = 14 * C, Hh = 13 * C;
-    const unit = { inc: '件', hero: '名', villain: '名' }[ui.mapMetric];
+    const unit = { inc: '件', hero: '名', villain: '名', dmg: '億円' }[ui.mapMetric];
     const cells = Object.entries(TILE).map(([p, [x, y]]) => {
       const b = bin(vals[p]);
       return `<g class="tile${ui.pref === p ? ' sel' : ''}" data-pref="${p}" tabindex="0" role="button" aria-label="${p} ${vals[p]}${unit}"><title>${p}：${vals[p]}${unit}</title><rect x="${x * C + 1}" y="${y * C + 1}" width="${C - 2}" height="${C - 2}" rx="4" class="b${b}"/><text x="${x * C + C / 2}" y="${y * C + C / 2 + 3.5}" text-anchor="middle" class="tb${b}">${shortPref(p).slice(0, 2)}</text></g>`;
@@ -959,13 +961,13 @@
     const tw = { S: 4, A: 3, B: 2, C: 1 };
     let list = sim.villains.filter((v) => (f === 'kaiju' ? v.kind === 'kaiju' : f === 'all' ? true : v.kind === 'villain' && v.status === f));
     if (q) list = list.filter((v) => [v.name, v.alias || '', v.power.name, v.pref, v.real, v.org !== null ? sim.orgs[v.org].name : ''].join(' ').includes(q));
-    const key = { threat: (v) => -(tw[v.threat] * 1000 + v.notoriety), bounty: (v) => -sim.bounty(v), crimes: (v) => -v.crimes, wins: (v) => -Object.values(v.vs || {}).reduce((a, r) => a + r[0], 0), new: (v) => -v.id }[sort];
+    const key = { threat: (v) => -(tw[v.threat] * 1000 + v.notoriety), dmg: (v) => -((v.dmg && v.dmg.m) || 0), bounty: (v) => -sim.bounty(v), crimes: (v) => -v.crimes, wins: (v) => -Object.values(v.vs || {}).reduce((a, r) => a + r[0], 0), new: (v) => -v.id }[sort];
     list.sort((a, b) => key(a) - key(b));
     const shown = list.slice(0, ui.vLimit);
     const top = f === 'free' && !q ? sim.villains.filter((v) => v.kind === 'villain' && v.status === 'free').sort((a, b) => sim.bounty(b) - sim.bounty(a)).slice(0, 6) : [];
-    const right = (v) => (v.kind === 'kaiju' ? '' : sort === 'crimes' ? `犯行${v.crimes}` : sort === 'wins' ? `勝利${Object.values(v.vs || {}).reduce((a, r) => a + r[0], 0)}` : yen2(sim.bounty(v)));
+    const right = (v) => (sort === 'dmg' ? (v.dmg ? sim.fmtDamage(v.dmg.m) : '―') : v.kind === 'kaiju' ? '' : sort === 'crimes' ? `犯行${v.crimes}` : sort === 'wins' ? `勝利${Object.values(v.vs || {}).reduce((a, r) => a + r[0], 0)}` : yen2(sim.bounty(v)));
     $('#villainList').innerHTML = (top.length ? `<h2>指名手配<small>懸賞金の高い順</small></h2><div class="posters">${top.map(wantedPoster).join('')}</div>` : '') + `<h2>ヴィラン${f === 'kaiju' ? '・怪獣' : ''}<small>${list.length}件</small></h2>` + (list.length
-      ? `<table class="rk-table"><thead><tr><th>危険度</th><th>状態</th><th>ヴィラン</th><th>${sort === 'crimes' ? '犯行' : sort === 'wins' ? '勝利' : '懸賞金'}</th></tr></thead><tbody>${shown.map((v) => `<tr><td class="rk"><span class="threat t${v.threat}">${v.threat}</span></td><td class="mv">${esc(VSTATUS[v.status] || '')}</td><td class="who">${link('v', v)}<small>${v.alias ? '「' + esc(v.alias) + '」・' : ''}${esc(v.power.name)}${v.org !== null ? '・' + esc(sim.orgs[v.org].name) + (v.orgRank === 'boss' ? '首領' : v.orgRank === 'exec' ? '幹部' : '') : ''}${v.nemesis !== null ? '・宿敵 ' + esc(sim.heroes[v.nemesis].name) : ''}${v.lastSeen && v.status === 'free' ? `・最終目撃 ${esc(v.lastSeen.pref)}` : ''}</small></td><td class="sc">${right(v)}</td></tr>`).join('')}</tbody></table>
+      ? `<table class="rk-table"><thead><tr><th>危険度</th><th>状態</th><th>ヴィラン</th><th>${sort === 'crimes' ? '犯行' : sort === 'wins' ? '勝利' : sort === 'dmg' ? '被害総額' : '懸賞金'}</th></tr></thead><tbody>${shown.map((v) => `<tr><td class="rk"><span class="threat t${v.threat}">${v.threat}</span></td><td class="mv">${esc(VSTATUS[v.status] || '')}</td><td class="who">${link('v', v)}<small>${v.alias ? '「' + esc(v.alias) + '」・' : ''}${esc(v.power.name)}${v.org !== null ? '・' + esc(sim.orgs[v.org].name) + (v.orgRank === 'boss' ? '首領' : v.orgRank === 'exec' ? '幹部' : '') : ''}${v.nemesis !== null ? '・宿敵 ' + esc(sim.heroes[v.nemesis].name) : ''}${v.lastSeen && v.status === 'free' ? `・最終目撃 ${esc(v.lastSeen.pref)}` : ''}</small></td><td class="sc">${right(v)}</td></tr>`).join('')}</tbody></table>
         ${list.length > shown.length ? `<button type="button" class="more" data-more="villain">さらに表示</button>` : ''}`
       : '<p class="empty">該当するヴィランはいません。</p>');
   }
@@ -1508,7 +1510,7 @@
 
   // ---------- ヴィランの詳細 ----------
   const yen2 = (man) => (man >= 10000 ? `${(man / 10000).toFixed(1)}億円` : `${num(man)}万円`);
-  const VSIT = { taunt: '犯行時', lose: '逮捕時', win: '逃走時', escape: '脱獄', boss: '黒幕' };
+  const VSIT = { taunt: '犯行時', caught: '逮捕時', escape: '逃走時' };
   function villainTimeline(v) {
     const ev = [{ y: v.debutYear, d: -1, t: '出現', s: `${esc(v.pref)}で初めて確認される` }];
     for (const l of sim.log) {
@@ -1563,6 +1565,7 @@
           <h5>悪の道へ</h5><p class="bio">${esc(v.origin)}。目的は「${esc(v.motive)}」。</p></section>
         <section class="pcard"><h4>犯罪記録</h4>
           <div class="recs"><div><b>${v.crimes}</b><span>犯行</span></div><div><b>${totW}</b><span>ヒーローに勝利</span></div><div><b>${v.escapes}</b><span>脱獄</span></div><div><b>${v.notoriety}</b><span>悪名</span></div></div>
+          ${v.dmg ? `<h5>これまでの被害</h5><div class="recs dmgrec"><div><b>${sim.fmtDamage(v.dmg.m)}</b><span>被害総額</span></div><div><b>${num(v.dmg.inj)}</b><span>負傷者</span></div></div>${dmgYears(v)}` : ''}
           ${rel.length ? dl(rel) : ''}</section>
         <section class="pcard"><h4>語録</h4>${quotes.length ? `<ul class="quotes">${quotes.map((x) => `<li><span class="qs">${VSIT[x.s] || ''}</span><p>「${rich(x.t)}」</p><small>${G.fmtDate(x.y, x.d)}</small></li>`).join('')}</ul>` : '<p class="mapnote">まだ記録された言葉はありません。</p>'}</section>
         <section class="pcard wide" id="vp-graph"><h4>相関図</h4>${villainGraph(v)}</section>
@@ -1573,6 +1576,12 @@
         <section class="pcard wide" id="vp-life"><h4>経歴</h4>${villainTimeline(v)}</section>
       </div>
       <h4 class="sect" id="vp-hist">記録された事件</h4>${histList(v)}`);
+  }
+  function dmgYears(v) {
+    const ys = Object.entries(v.dmg.y || {}).map(([y, d]) => [+y, d[0], d[1]]).sort((a, b) => a[0] - b[0]).slice(-8);
+    if (ys.length < 2) return '';
+    const mx = Math.max(...ys.map((x) => x[1]), 0.1);
+    return `<div class="dmgyears">${ys.map(([y, m, inj]) => `<div><i style="height:${Math.max(3, (m / mx) * 60)}px" title="${y}年：${sim.fmtDamage(m)}・負傷者${inj}名"></i><span>${String(y).slice(2)}</span></div>`).join('')}</div><p class="mapnote">年ごとの被害額</p>`;
   }
   function wantedPoster(v) {
     return `<button type="button" class="poster nm v" data-k="v" data-id="${v.id}"><span class="pt">WANTED</span><span class="pn">${esc(v.name)}</span><span class="pa">${v.alias ? esc(v.alias) : esc(v.power.name)}</span><span class="pb">${yen2(sim.bounty(v))}</span><span class="threat t${v.threat}">${v.threat}</span></button>`;
@@ -1670,9 +1679,36 @@
     openModal(`<h2 class="yearend-title" id="modalTitle">${y}年版 ヒーロー白書</h2>
       <p class="pf-sub">超常対策庁 編・${esc(w.era)}</p>
       <div class="kpis">${k(num(tot), '事件', delta(tot, ptot, '件', true))}${k(solved(w) + '%', '解決率', p ? delta(solved(w), solved(p), 'pt') : '')}${k(w.captures, 'ヴィラン検挙', p ? delta(w.captures, p.captures) : '')}${k(w.deaths, '殉職', p ? delta(w.deaths, p.deaths, '', true) : '')}${k(w.ap + '%', '支持率（平均）', p ? delta(w.ap, p.ap, 'pt') : '')}${k(w.active, '現役ヒーロー', p ? delta(w.active, p.active) : '')}${k(w.freeV, '逃亡中ヴィラン', p ? delta(w.freeV, p.freeV, '', true) : '')}${k(w.debuts, '新人', p ? delta(w.debuts, p.debuts) : '')}</div>
+      ${w.dmg ? `<div class="kpis sm">${k(sim.fmtDamage(w.dmg.m), '被害総額', p && p.dmg ? `<small class="${w.dmg.m <= p.dmg.m ? 'up' : 'down'}">前年 ${sim.fmtDamage(p.dmg.m)}</small>` : '')}${k(num(w.dmg.inj), '負傷者', p && p.dmg ? `<small class="${w.dmg.inj <= p.dmg.inj ? 'up' : 'down'}">前年 ${num(p.dmg.inj)}名</small>` : '')}${w.dmgV && w.dmgV[0] ? k(esc(sim.villains[w.dmgV[0][0]].name), '最も被害を出したヴィラン', `<small>${sim.fmtDamage(w.dmgV[0][1])}</small>`) : ''}</div>` : ''}
       <div class="white">${para.map((x) => `<p>${x}</p>`).join('')}</div>
       <div class="pf-cards"><section class="pcard"><h4>事件の内訳<small>${p ? '右は前年との差' : ''}</small></h4>${incBars}</section><section class="pcard"><h4>上位50名の能力系統</h4>${elBars}</section></div>
       <div class="btnrow">${wps.filter((x) => x.y !== y).slice(-6).map((x) => `<button type="button" class="btn alt sm" data-white="${x.y}">${x.y}年版</button>`).join('')}</div>`);
+  }
+
+  // ---------- ヴィランの被害 ----------
+  function damageCard() {
+    sim.ensureDmg();
+    const st = sim.st;
+    const fm = (m) => sim.fmtDamage(m);
+    const prevW = (sim.whitepapers || []).find((w) => w.y === sim.year - 1);
+    const mons = st.dmgM;
+    const mx = Math.max(0.1, ...mons.map((x) => x.m));
+    const W = 320, Hh = 110, bw = W / 12;
+    const cur = G.dateOf(sim.year, lastDay()).getMonth();
+    const bars = mons.map((x, i) => { const h = (x.m / mx) * (Hh - 24); return `<rect x="${(i * bw + 3).toFixed(1)}" y="${(Hh - 16 - h).toFixed(1)}" width="${(bw - 6).toFixed(1)}" height="${h.toFixed(1)}" rx="2" class="${i === cur ? 'cur' : ''}"><title>${i + 1}月：${fm(x.m)}・負傷者${x.inj}名</title></rect><text x="${(i * bw + bw / 2).toFixed(1)}" y="${Hh - 3}" text-anchor="middle">${i + 1}</text>`; }).join('');
+    const topV = Object.entries(st.dmgV).map(([id, d]) => [sim.villains[+id], d]).filter(([v]) => v && v.kind === 'villain').sort((a, b) => b[1].m - a[1].m).slice(0, 5);
+    const vmax = topV.length ? topV[0][1].m : 1;
+    const topP = Object.entries(st.dmgPref).sort((a, b) => b[1].m - a[1].m).slice(0, 3);
+    const types = Object.entries(st.dmgType).sort((a, b) => b[1].m - a[1].m);
+    const tsum = types.reduce((a, [, d]) => a + d.m, 0) || 1;
+    const TL = { petty: '街の事件', rescue: '事故', mystery: '怪事件', weird: '怪現象', villain: 'ヴィラン', kaiju: '怪獣', disaster: '大災害', org: '組織テロ', raid: '一斉摘発' };
+    return `<figure class="fig" id="d-dmg"><figcaption><span>ヴィランと災害の被害（${sim.year}年）</span><span class="legend">${prevW && prevW.dmg ? `前年 ${fm(prevW.dmg.m)}・負傷者${num(prevW.dmg.inj)}名` : ''}</span></figcaption>
+      <div class="kpis sm"><div class="kpi bad"><b>${fm(st.dmg.m)}</b><span>被害総額</span></div><div class="kpi"><b>${num(st.dmg.inj)}</b><span>負傷者</span></div><div class="kpi"><b>${topP[0] ? esc(shortPref(topP[0][0])) : '―'}</b><span>最も被害の大きい県</span></div></div>
+      <div class="dmgtypes" aria-label="被害の内訳">${types.slice(0, 6).map(([t, d], i) => `<i class="dt${i}" style="width:${(d.m / tsum) * 100}%" title="${TL[t] || t} ${fm(d.m)}"></i>`).join('')}</div>
+      <p class="mapnote dmgleg">${types.slice(0, 6).map(([t, d], i) => `<span><i class="sw dt${i}"></i>${TL[t] || t} ${Math.round((d.m / tsum) * 100)}%</span>`).join('')}</p>
+      <h5>月別の被害額</h5><svg class="dmgbars" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="月別の被害額">${bars}</svg>
+      <h5>被害の大きいヴィラン</h5>${topV.length ? `<ul class="dmglist">${topV.map(([v, d]) => `<li><span class="threat t${v.threat}">${v.threat}</span>${link('v', v)}<i class="bar red"><b style="width:${(d.m / vmax) * 100}%"></b></i><span class="nu">${fm(d.m)}・負傷者${d.inj}名</span></li>`).join('')}</ul>` : '<p class="mapnote">まだ大きな被害は出ていません。</p>'}
+    </figure>`;
   }
 
   // ---------- 詳細 ----------

@@ -825,3 +825,23 @@ figcaption small { font-weight: 400; color: var(--mute); margin-left: 6px; font-
 .kpi small { display: block; font-size: 0.72rem; margin-top: 2px; }
 .kpi small.up { color: var(--good); } .kpi small.down { color: var(--alert); } .kpi small.same { color: var(--mute); }
 .meter small.up { color: var(--good); } .meter small.down { color: var(--alert); }
+
+/* ===== 被害 ===== */
+.dmgtypes { display: flex; height: 12px; border-radius: 6px; overflow: hidden; margin: 6px 0 4px; background: var(--chip); }
+.dmgtypes i, .sw.dt0, .sw.dt1, .sw.dt2, .sw.dt3, .sw.dt4, .sw.dt5 { display: block; }
+.dt0 { background: #b91c1c; } .dt1 { background: #ea580c; } .dt2 { background: #d97706; } .dt3 { background: #7c3aed; } .dt4 { background: #0e7490; } .dt5 { background: #64748b; }
+.dmgleg { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.dmgleg .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
+.dmgbars { width: 100%; max-width: 480px; height: auto; display: block; }
+.dmgbars rect { fill: color-mix(in srgb, var(--villain) 55%, transparent); }
+.dmgbars rect.cur { fill: var(--villain); }
+.dmgbars text { font-size: 9px; fill: var(--mute); }
+.dmglist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dmglist li { display: grid; grid-template-columns: auto auto minmax(60px, 1fr) auto; gap: 8px; align-items: center; font-size: 0.85rem; }
+.bar.red b { background: var(--villain); }
+.kpi.bad b { color: var(--villain); }
+.dmgrec { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dmgyears { display: flex; align-items: flex-end; gap: 6px; height: 80px; margin-top: 8px; }
+.dmgyears div { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 0.65rem; color: var(--mute); }
+.dmgyears i { display: block; width: 16px; background: var(--villain); border-radius: 2px 2px 0 0; }
+.dmglist .bar { height: 8px; margin-top: 0; }
