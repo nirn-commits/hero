@@ -256,7 +256,7 @@
           if (!free.length) return this.incident('petty');
           v = R.wpick(free, (x) => 10 + x.notoriety);
         }
-        if (R.chance(0.7)) pref = this.prefObj(v.pref);
+        if (R.chance(0.7) && !extra.fixPref) pref = this.prefObj(v.pref);
         diff = G.eff(v, def.need) * R.f(0.85, 1.15);
       } else if (type === 'kaiju') {
         const back = this.villains.filter((x) => x.kind === 'kaiju' && x.status === 'retreated');
@@ -375,14 +375,14 @@
       if (this.pendingSaga || extra.tag) imp = 3;
       imp = this.impFor(imp, all);
       if (type === 'disaster' || type === 'kaiju') text = `【${D.bigHeadlines[type]}】` + text;
-      this.post(cat, imp, text, { h: all, v: v ? [v] : [], o });
+      const incNews = this.post(cat, imp, text, { h: all, v: v ? [v] : [], o });
       this.flushSaga();
       if (this.pendingKaiju) { this.logRec('kaiju', this.pendingKaiju); this.pendingKaiju = null; }
       if (this.pendingOrgDown) { this.logRec('org', { o: this.pendingOrgDown, h: lead.id }); this.pendingOrgDown = null; }
 
       this.afterVAlly();
       this.afterIncident(type, out, all, lead);
-      this.lastIncident = { out, lead: lead.id };
+      this.lastIncident = { out, lead: lead.id, n: incNews.id };
       for (const h of deaths) this.die(h, v);
       for (const h of all) h.busy = true;
     }

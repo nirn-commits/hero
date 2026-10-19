@@ -16,7 +16,7 @@
   };
   const REC_GROUPS = [
     ['ヒーロー', [['death', '殉職'], ['retire', '引退'], ['scandal', 'スキャンダル'], ['hof', '殿堂入り'], ['legacy', '二世'], ['inherit', '継承'], ['milestone', '節目'], ['comeback', '現役復帰'], ['after', '引退後の消息'], ['record', '新記録'], ['mentor', '師弟'], ['cast', '中心人物']]],
-    ['物語', [['saga', '宿敵の決着'], ['boss', '黒幕'], ['fallen', '闇堕ち'], ['reform', '改心'], ['kaiju', '怪獣'], ['org', '組織壊滅'], ['serial', '連続事件'], ['vally', 'ヴィランの加勢']]],
+    ['物語', [['saga', '宿敵の決着'], ['boss', '黒幕'], ['fallen', '闇堕ち'], ['reform', '改心'], ['kaiju', '怪獣'], ['org', '組織壊滅'], ['serial', '連続事件'], ['vally', 'ヴィランの加勢'], ['arc', '連載の物語']]],
     ['社会', [['era', '時代'], ['policy', '世論・制度'], ['agency', '事務所'], ['marry', '結婚'], ['world', '世界大会'], ['foreign', '国際手配']]],
     ['学園', [['grad', '卒業と進路'], ['school', '学園の出来事']]],
     ['年表', [['records', '歴代記録'], ['chronicle', '年代記'], ['awards', '歴代表彰'], ['tourney', '全国大会'], ['months', '月間1位'], ['cover', '週刊誌の表紙']]],
@@ -182,8 +182,9 @@
   function loadFavs() {
     ui.favs = new Set();
     try { const a = JSON.parse(localStorage.getItem('hero-favs-' + sim.seed) || '[]'); for (const id of a) ui.favs.add(id); } catch (e) { /* 無視 */ }
+    sim.favHint = [...ui.favs];
   }
-  function saveFavs() { try { localStorage.setItem('hero-favs-' + sim.seed, JSON.stringify([...ui.favs])); } catch (e) { /* 無視 */ } }
+  function saveFavs() { sim.favHint = [...ui.favs]; try { localStorage.setItem('hero-favs-' + sim.seed, JSON.stringify([...ui.favs])); } catch (e) { /* 無視 */ } }
   const favBtn = (h) => `<button type="button" class="fav-btn" data-fav="${h.id}" aria-pressed="${ui.favs.has(h.id)}" aria-label="${esc(h.name)}を推しに${ui.favs.has(h.id) ? '登録済み' : '登録'}" title="推しに登録">${ui.favs.has(h.id) ? '★' : '☆'}</button>`;
   const isFavNews = (n) => (n.h && n.h.some((id) => ui.favs.has(id))) || (n.s && n.s.some((id) => ui.sfavs.has(id)));
   // 推しの生徒
@@ -217,11 +218,12 @@
   }
 
   // ---------- 進行 ----------
-  function newWorld(seed) {
+  function newWorld(seed, opts) {
     stop();
     cancelCountdown();
     sim = new G.Sim(seed || randomSeed());
-    loadFavs(); loadSFavs();
+    if (opts && opts.teach) sim.teacherMode = true;
+    loadFavs(); loadSFavs(); updateTeachTab();
     $('#seedLabel').textContent = sim.seed;
     $('#feed').innerHTML = '';
     setFlash('新しい世界が生まれました。登録ヒーロー' + sim.heroes.length + '名、ヴィラン組織' + sim.orgs.filter((o) => o.status === 'active').length + 'つ。一年が始まります。');
@@ -232,7 +234,7 @@
   }
   function resumeWorld(s) {
     sim = s;
-    loadFavs(); loadSFavs();
+    loadFavs(); loadSFavs(); updateTeachTab();
     $('#seedLabel').textContent = sim.seed;
     rebuildFeed();
     setFlash(`前回の続き（${G.fmtDate(sim.year, lastDay())}）から再開しました。`);
@@ -347,7 +349,7 @@
     [/【時代】/, (n, t) => `「${(t.match(/「([^」]+)」/) || [, '新時代'])[1]}」到来`], [/首位が交代/, (n) => `首位交代　${n}が1位に`], [/【新組織】/, () => '新たなヴィラン組織が出現'],
     [/【衝撃】/, (n) => `${n}、闇に堕ちる`], [/【復活】/, (n) => `${n}、現役復帰`], [/【全国大会決勝】/, (n) => `${n}、全国大会を制す`], [/【新記録】/, (n) => `${n}、歴代記録を更新`],
     [/【世界大会】.*優勝した/, (n) => `${n}、世界一に`], [/【不穏】/, () => '謎の黒幕、出現か'], [/【殿堂入り】/, (n) => `${n}、殿堂入り`], [/【連続事件・最終話】/, () => '連続事件、ついに決戦'],
-    [/【学園襲撃】/, () => '養成校の合宿をヴィランが襲撃'], [/【救出】/, () => '連れ去られた生徒、無事に救出'],
+    [/【学園襲撃】/, () => '養成校の合宿をヴィランが襲撃'], [/【([^】]+)・終】/, (n, t) => `『${t.match(/【([^】]+)・終】/)[1]}』完結`], [/【救出】/, () => '連れ去られた生徒、無事に救出'],
   ];
   let extraTimer = null, lastExtra = -99;
   function checkExtra(items) {
@@ -488,6 +490,7 @@
         ${predictCard()}
         <div class="duo">${watchCard()}${serialCard()}</div>
         <div class="duo">${coverCard()}${favPanel()}</div>
+        ${arcCard()}
         ${castCard()}
         ${schoolCard()}
         ${t ? `<figure class="fig"><figcaption><span>第${t.no}回 全国ヒーロー大会</span><span class="legend">${t.champ !== null ? '優勝 ' + link('h', sim.heroes[t.champ]) : '決勝は11月3日'}</span></figcaption>${bracket(t)}</figure>` : ''}
@@ -888,6 +891,7 @@
       boss: ['日付', '黒幕', '結果', '最後の一撃', '参戦', (l) => `${date(l)}<td>${Vv(l.v)}</td><td>${l.res === '撃破' ? '<span class="ok">撃破</span>' : `<span class="ng">${esc(l.res)}</span>`}</td><td>${H(l.h)}</td><td class="nu">${l.heroes.length}名</td>`],
       era: ['年', '新しい時代', 'それまで', '', '', (l) => `<td class="dt">${l.y}年</td><td><b>${esc(l.name)}</b></td><td>${esc(l.prev)}</td><td></td><td></td>`],
       policy: ['日付', '出来事', '支持率', '', '', (l) => `${date(l)}<td>${esc(l.kind)}</td><td class="nu">${l.ap}%</td><td></td><td></td>`],
+      arc: ['完結', '題名', '主人公', '種類', '結末', (l) => `${date(l)}<td>『${esc(l.title)}』</td><td>${H(l.h)}</td><td>${esc(D.arcs[l.type].label)}</td><td>${l.res === '成就' ? '<span class="ok">完結</span>' : '<span class="ng">未完のまま幕</span>'} <button type="button" class="linkbtn" data-arc="${(sim.arcs.find((a) => a.h === l.h && a.title === l.title && a.ey === l.y) || {}).id}">読む</button></td>`],
       cast: ['認定', '人物', 'きっかけ', '現在', '', (l) => { const x = l.h !== undefined ? sim.heroes[l.h] : sim.students[l.s]; const cur = l.h !== undefined ? (x.rank ? `${x.rank}位` : STATUS[x.status] || '') : x.status === 'hero' ? `ヒーロー ${link('h', sim.heroes[x.heroId])}` : SSTATUS[x.status]; return `${date(l)}<td>${l.h !== undefined ? H(l.h) : slinkFull(x)}</td><td><span class="st cast">◆ ${esc(D.castReasons[l.reason].tag)}</span></td><td>${cur}</td><td></td>`; }],
       grad: ['卒業', '生徒', '学校', '進路', '現在', (l) => { const st = sim.students[l.s]; const hh = l.h !== null ? sim.heroes[l.h] : null; return `<td class="dt">${l.y}年</td><td>${slinkFull(st)}</td><td>${esc(D.academies[l.sc].short)}</td><td>${hh ? '<span class="ok">ヒーロー</span>' : esc(l.career || st.road || '')}</td><td>${hh ? `${hlink(hh)}${hh.rank ? ` ${hh.rank}位` : statusChip(hh)}` : st.status === 'villain' ? `<span class="ng">ヴィラン</span> ${link('v', sim.villains[st.villainId])}` : st.status === 'hero' ? hlink(sim.heroes[st.heroId]) : ''}</td>`; }],
       school: ['日付', '出来事', '生徒・人物', '学校', '結果', (l) => `${date(l)}<td>${esc(l.kind)}</td><td>${l.s !== undefined ? slinkFull(sim.students[l.s]) : l.h !== undefined ? H(l.h) : '―'}</td><td>${esc(D.academies[l.sc].short)}</td><td>${l.res ? esc(l.res) : l.g ? `${l.g}年の部` : ''}</td>`],
@@ -1043,6 +1047,7 @@
     const heroes = sim.students.filter((s) => s.school === cur && s.status === 'hero').map((s) => sim.heroes[s.heroId]).filter((h) => h.rank !== null).sort((a, b) => a.rank - b.rank);
     const counts = [1, 2, 3].map((k) => sim.enrolled(cur, k).length);
     $('#pane-school').innerHTML = `<h2>ヒーロー養成校<small>次の行事 ${nextSchoolEvent()}</small></h2>
+      <div class="tmode">${sim.teacherMode ? `<span>教師モード：<b>有効</b>${sim.teacher ? `（${esc(sim.teacher.name)}先生・${esc(D.academies[sim.teacher.school].short)}）` : ''}</span><button type="button" class="btn alt sm" data-goto="teach">担任タブへ</button><button type="button" class="btn alt sm" id="teachModeOff">無効にする</button>` : `<span>教師モード：<b>無効</b>　有効にすると「担任」タブが現れ、養成校の担任としてクラスを指導できます。</span><button type="button" class="btn sm" id="teachModeOn">有効にする</button>`}</div>
       <div class="schtabs" role="group" aria-label="学校を選ぶ">${tabs}</div>
       <section class="schhead" style="--sc:${d.color}">
         <div><h3>${esc(d.name)}</h3><p>${esc(d.desc)}</p><p class="motto">校訓「${esc(d.motto)}」</p></div>
@@ -1303,6 +1308,7 @@
         case 'kaiju': if (me && l.res === '撃破') add(l.d, 6, `怪獣${V2(l.v)}にとどめを刺した`); break;
         case 'org': if (me) add(l.d, 7, `ヴィラン組織${link('o', sim.orgs[l.o])}への突入を率い、壊滅させた`); break;
         case 'hof': if (me) add(l.d, 9, '殿堂入りを果たした'); break;
+        case 'arc': if (me) add(l.d, 9, l.res === '成就' ? `連載『${esc(l.title)}』の物語を、自らの手で完結させた` : `連載『${esc(l.title)}』の物語は、思いどおりの結末にはならなかった`); break;
         case 'retire': if (me) add(l.d, 10, `活動${l.career}年でヒーローを引退した`); break;
         case 'death': if (me) add(l.d, 10, l.v !== null ? `${V2(l.v)}との戦いで命を落とした` : '救助活動のさなかに殉職した'); break;
         case 'fallen': if (me) add(l.d, 10, `ヒーローをやめ、ヴィラン${V2(l.v)}として姿を現した`); break;
@@ -1363,6 +1369,42 @@
     return `<figure class="fig"><figcaption><span>物語の中心人物<small>${act.length}名</small></span><button type="button" class="linkbtn" data-gorec="cast">すべて見る</button></figcaption>
       <ul class="castlist">${list.map((e) => { const x = e.k === 'h' ? sim.heroes[e.id] : sim.students[e.id]; return `<li>${e.k === 'h' ? hlink(x) : slinkFull(x)}${castTag(x)}<small>${e.k === 'h' && x.rank ? x.rank + '位・' : ''}${e.y}年〜</small></li>`; }).join('')}</ul>
       <p class="mapnote">強さだけでなく、正義感・雪辱・恩返し・継承・喪失など、さまざまなきっかけで選ばれます。選ばれた人物は、日常の場面や命日の出来事が描かれやすくなります。</p></figure>`;
+  }
+
+  // ---------- 連載の物語 ----------
+  const arcProg = (a) => { const n = D.arcs[a.type].stages.length + 1; const k = a.done ? n : a.stage; return `<span class="arcdots" aria-label="${k}/${n}話">${'●'.repeat(k)}${'○'.repeat(n - k)}</span>`; };
+  function arcCard() {
+    const on = sim.ongoingArcs ? sim.ongoingArcs() : [];
+    const fin = (sim.arcs || []).filter((a) => a.done && a.res !== '中断').slice(-4).reverse();
+    if (!on.length && !fin.length) return '';
+    const row = (a) => {
+      const h = sim.heroes[a.h];
+      const last = a.news.length ? sim.news[a.news[a.news.length - 1]] : null;
+      return `<li><div class="arch"><b>『${esc(a.title)}』</b>${arcProg(a)}${a.done ? `<span class="st${a.res === '成就' ? ' ok-st' : ''}">${a.res === '成就' ? '完結' : '未完のまま幕'}</span>` : '<span class="st cast">連載中</span>'}</div>
+        <div class="arcsub">主人公 ${hlink(h)}${ui.favs.has(h.id) ? '<span class="st gold">推し</span>' : ''}${castTag(h)}　<small>${esc(D.arcs[a.type].label)}</small></div>
+        ${last ? `<p class="arclast">${rich(last.text.replace(/^【[^】]+】/, ''))}</p>` : ''}<button type="button" class="linkbtn" data-arc="${a.id}">通して読む</button></li>`;
+    };
+    return `<figure class="fig"><figcaption><span>連載中の物語<small>推しや中心人物を主人公に、数話かけて進みます</small></span><button type="button" class="linkbtn" data-gorec="arc">これまでの物語</button></figcaption>
+      ${on.length ? `<ul class="arclist">${on.map(row).join('')}</ul>` : '<p class="mapnote">いまは連載中の物語はありません。推しや中心人物に、やがて新しい物語が始まります。</p>'}
+      ${fin.length ? `<h5>最近完結した物語</h5><ul class="arclist done">${fin.map(row).join('')}</ul>` : ''}</figure>`;
+  }
+  function showArc(a) {
+    const h = sim.heroes[a.h];
+    const parts = a.news.map((id) => sim.news[id]).filter(Boolean);
+    openModal(`<h2 class="yearend-title" id="modalTitle">『${esc(a.title)}』</h2>
+      <p class="pf-sub">${esc(D.arcs[a.type].label)}・主人公 ${hlink(h)}・${a.y}年${a.done ? `〜${a.ey}年　${a.res === '成就' ? '完結' : a.res === '中断' ? '中断' : '未完のまま幕'}` : '　連載中'}</p>
+      <div class="arcread">${parts.map((n) => { const m = n.text.match(/^【([^】]+)】/); return `<section><h4>${esc(m ? m[1].replace(a.title, '').replace(/^[　・]/, '') || '本編' : '本編')}<small>${G.fmtDate(n.y, n.d)}</small></h4><p>${rich(n.text.replace(/^【[^】]+】/, ''))}</p></section>`; }).join('') || '<p class="mapnote">古い記事は保存容量のため省略されています。</p>'}</div>
+      ${a.done ? '' : `<p class="mapnote">次の話は${arcProg(a)}のあと、2〜3週間ほどで届きます。</p>`}`);
+  }
+  function arcSection(h) {
+    const list = (h.arcs || []).map((id) => sim.arcs[id]).filter(Boolean);
+    if (!list.length) return '';
+    return `<section class="pcard wide"><h4>物語の章</h4><ul class="arclist">${list.slice().reverse().map((a) => `<li><div class="arch"><b>『${esc(a.title)}』</b>${arcProg(a)}<span class="st${a.res === '成就' ? ' ok-st' : a.done ? '' : ' cast'}">${a.done ? (a.res === '成就' ? '完結' : a.res === '中断' ? '中断' : '未完のまま幕') : '連載中'}</span><small>${a.y}年・${esc(D.arcs[a.type].label)}</small></div><button type="button" class="linkbtn" data-arc="${a.id}">通して読む</button></li>`).join('')}</ul></section>`;
+  }
+  function updateTeachTab() {
+    const on = !!(sim && sim.teacherMode);
+    $('#tab-teach').hidden = !on;
+    if (!on && ui.tab === 'teach') setTab('dash');
   }
 
   // ---------- 詳細 ----------
@@ -1544,6 +1586,7 @@
         <section class="pcard"><h4>ファンの声と支持層</h4>${fanSection(h)}</section>
         <section class="pcard"><h4>語録</h4>${quoteList(h)}</section>
         ${rel.length ? `<section class="pcard"><h4>人間関係</h4>${dl(rel)}</section>` : ''}
+        ${arcSection(h)}
         <section class="pcard wide"><h4>年ごとのあらすじ</h4>${synopsisSection(h)}</section>
         <section class="pcard"><h4>縁と記憶</h4>${memList(h)}</section>
         <section class="pcard wide"><h4>人生年表</h4>${lifeTimeline(h)}</section>
@@ -1649,6 +1692,7 @@
     openModal(`<h2 class="yearend-title" id="modalTitle">新しい世界を作る</h2>
       <p class="bio">スロット${ui.slot}の今の世界（${esc(sim.seed)}・${sim.year}年）は上書きされ、元に戻せません。残しておきたいときは、先に「スロット」から別のスロットに切り替えてください。ヒーロー・ヴィラン・組織をすべて作り直して1年目から始めます。同じシードを入れると同じ顔ぶれの世界になります。</p>
       <div class="field"><input id="seedInput" type="text" value="${esc(randomSeed())}" aria-label="世界シード"><button type="button" class="btn" id="seedGo">この世界で始める</button></div>
+      <label class="check"><input type="checkbox" id="newTeach"> 教師モードを有効にする（養成校の担任として、クラスを指導できます）</label>
       <div class="btnrow"><button type="button" class="btn alt" id="cancelNew">今の世界を続ける</button></div>`);
   }
 
@@ -1725,7 +1769,15 @@
       if (id === 'modalClose' || id === 'modal' || id === 'cancelNew') { closeModal(); return; }
       if (id === 'stayBtn') { cancelCountdown(); const el = $('#countdown'); if (el) el.textContent = '再生ボタンを押すと次の年へ進みます。'; return; }
       if (id === 'nextYearBtn') { nextYear(); return; }
-      if (id === 'seedGo') { const s = $('#seedInput').value.trim(); closeModal(); newWorld(s || randomSeed()); return; }
+      if (id === 'seedGo') { const s = $('#seedInput').value.trim(); const tm = $('#newTeach') && $('#newTeach').checked; closeModal(); newWorld(s || randomSeed(), { teach: tm }); return; }
+      if (id === 'teachModeOn') { sim.teacherMode = true; updateTeachTab(); setTab('teach'); saveWorld(); return; }
+      if (id === 'teachModeOff') {
+        const b = e.target;
+        if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = '本当に無効にする（担任の記録は残り、再び有効にすると続きから）'; return; }
+        sim.teacherMode = false; updateTeachTab(); renderSchool(); saveWorld(); return;
+      }
+      const arcb = e.target.closest('[data-arc]');
+      if (arcb) { cancelCountdown(); showArc(sim.arcs[+arcb.dataset.arc]); return; }
       if (id === 'newBtn' || e.target.dataset.act === 'new') { showNewWorld(); return; }
       if (id === 'slotBtn') { showSlots(); return; }
       const sg = e.target.closest('[data-slotgo]');

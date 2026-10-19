@@ -31,7 +31,7 @@
     return this.students.filter((s) => s.status === 'enrolled' && s.school === t.school && s.entry === t.entry);
   };
   P.myGrade = function () { const c = this.myClass(); return c.length ? c[0].grade : 0; };
-  P.isMine = function (s) { const t = this.teacher; return !!t && t.entry !== null && s.status === 'enrolled' && s.school === t.school && s.entry === t.entry; };
+  P.isMine = function (s) { const t = this.teacher; return !!t && this.teacherMode !== false && t.entry !== null && s.status === 'enrolled' && s.school === t.school && s.entry === t.entry; };
   P.markClass = function () { for (const s of this.myClass()) { s.taught = true; s.teacherName = this.teacher.name; prep(s); } };
   P.tLog = function (text) {
     const t = this.teacher;

@@ -726,3 +726,22 @@ table.tt select { width: 100%; font: inherit; font-size: 0.78rem; padding: 3px; 
 details.syn { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; margin-bottom: 6px; background: var(--panel); }
 details.syn summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 figcaption small { font-weight: 400; color: var(--mute); margin-left: 6px; font-size: 0.75rem; }
+
+/* ===== 連載の物語・教師モードの切り替え ===== */
+.arclist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.arclist li { border-left: 3px solid var(--k-cast); padding: 4px 0 4px 10px; }
+.arclist.done li { border-left-color: var(--line); }
+.arch { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.arch b { font-size: 0.95rem; }
+.arch small { color: var(--mute); font-size: 0.72rem; }
+.arcdots { color: var(--k-cast); letter-spacing: 2px; font-size: 0.75rem; }
+.arcsub { font-size: 0.82rem; margin-top: 2px; }
+.arcsub small { color: var(--mute); }
+.arclast { margin: 4px 0 2px; font-size: 0.84rem; line-height: 1.7; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.arcread section { margin: 0 0 14px; }
+.arcread h4 { margin: 0 0 4px; font-size: 0.9rem; color: var(--k-cast); display: flex; gap: 8px; align-items: baseline; }
+.arcread h4 small { color: var(--mute); font-weight: 400; font-size: 0.72rem; }
+.arcread p { margin: 0; line-height: 1.95; font-size: 0.95rem; }
+.tmode { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; background: var(--panel); border: 1px dashed var(--line); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 0.84rem; }
+.tmode .btn.sm { margin-left: 0; }
+.tab[hidden] { display: none !important; }

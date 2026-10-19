@@ -125,7 +125,7 @@
     if (m >= 9 && m <= 11 && R.chance(0.3)) this.internEvent();
     if (!(m === 8 && dd > 10) && R.chance(0.42)) this.schoolLife();
     if (R.chance(0.012)) this.obEvent();
-    if (this.teacher) this.teacherDaily(m, dd);
+    if (this.teacher && this.teacherMode !== false) this.teacherDaily(m, dd);
   };
 
   // ---------- 行事 ----------

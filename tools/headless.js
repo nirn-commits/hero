@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-for (const f of ['core', 'data_names', 'data_world', 'data_powers', 'data_people', 'data_events', 'data_story', 'data_more', 'data_more2', 'data_bond', 'data_voice', 'data_voice2', 'data_drama', 'data_school', 'data_teacher', 'data_memory', 'generator', 'sim', 'story', 'bond', 'voice', 'drama', 'academy', 'teacher', 'teacher2', 'memory']) {
+for (const f of ['core', 'data_names', 'data_world', 'data_powers', 'data_people', 'data_events', 'data_story', 'data_more', 'data_more2', 'data_bond', 'data_voice', 'data_voice2', 'data_drama', 'data_school', 'data_teacher', 'data_memory', 'data_arc', 'generator', 'sim', 'story', 'bond', 'voice', 'drama', 'academy', 'teacher', 'teacher2', 'memory', 'arc']) {
   vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'js', f + '.js'), 'utf8'), { filename: f + '.js' });
 }
 const G = globalThis.HG;
@@ -48,3 +48,6 @@ const mems = {}; for (const h of sim.heroes) for (const m of h.mem || []) mems[m
 console.log('mem', JSON.stringify(mems), 'anniv', sim.anniv.length, 'kids', sim.kids.length);
 for (const n of sim.news.filter((n) => n && /雪辱|この人に注目|命日|救われた子ども|肩を並べた|頭を下げた/.test(n.text)).slice(-8)) console.log(G.fmtDate(n.y, n.d), plain(n.text));
 console.log('active cast', sim.activeCast().length, 'by year', JSON.stringify(sim.log.filter((l) => l.t === 'cast').reduce((m, l) => ((m[l.y] = (m[l.y] || 0) + 1), m), {})));
+console.log('--- arcs', sim.arcs.length, JSON.stringify(sim.arcs.reduce((m, a) => ((m[a.type + ':' + a.res] = (m[a.type + ':' + a.res] || 0) + 1), m), {})));
+const fa = sim.arcs.filter((a) => a.done && a.res !== '中断').slice(-1)[0];
+if (fa) for (const id of fa.news) console.log(plain(sim.news[id].text));
