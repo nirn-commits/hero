@@ -709,3 +709,20 @@ table.tt select { width: 100%; font: inherit; font-size: 0.78rem; padding: 3px; 
 .btn.sm { padding: 2px 10px; font-size: 0.75rem; margin-left: 6px; }
 .btn:disabled { opacity: 0.5; }
 .notebody { color: var(--paper-ink); font-size: 0.95rem; line-height: 1.8; margin: 8px 0 12px; max-height: 50vh; overflow: auto; }
+
+/* ===== 記憶・中心人物・あらすじ ===== */
+:root { --k-cast: #7c3aed; --cast-bg: #f5f0ff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --k-cast: #c4b5fd; --cast-bg: #221a33; } }
+:root[data-theme="dark"] { --k-cast: #c4b5fd; --cast-bg: #221a33; }
+.st.cast { background: color-mix(in srgb, var(--k-cast) 14%, transparent); color: var(--k-cast); }
+.it.cst { background: var(--cast-bg); border-radius: 4px; box-shadow: -4px 0 0 var(--k-cast); }
+.castnote { margin: 4px 0 8px; font-size: 0.82rem; color: var(--k-cast); font-weight: 700; }
+.castnote .st { margin-left: 0; }
+.castlist { list-style: none; margin: 0 0 8px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 6px 14px; }
+.castlist li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; font-size: 0.86rem; }
+.castlist small { color: var(--mute); font-size: 0.72rem; margin-left: 4px; }
+.synopsis { font-size: 0.9rem; line-height: 1.9; margin-top: 8px; }
+.synopsis p { margin: 0 0 8px; text-indent: 1em; }
+details.syn { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; margin-bottom: 6px; background: var(--panel); }
+details.syn summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+figcaption small { font-weight: 400; color: var(--mute); margin-left: 6px; font-size: 0.75rem; }

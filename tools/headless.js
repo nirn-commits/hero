@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-for (const f of ['core', 'data_names', 'data_world', 'data_powers', 'data_people', 'data_events', 'data_story', 'data_more', 'data_more2', 'data_bond', 'data_voice', 'data_voice2', 'data_drama', 'data_school', 'data_teacher', 'generator', 'sim', 'story', 'bond', 'voice', 'drama', 'academy', 'teacher', 'teacher2']) {
+for (const f of ['core', 'data_names', 'data_world', 'data_powers', 'data_people', 'data_events', 'data_story', 'data_more', 'data_more2', 'data_bond', 'data_voice', 'data_voice2', 'data_drama', 'data_school', 'data_teacher', 'data_memory', 'generator', 'sim', 'story', 'bond', 'voice', 'drama', 'academy', 'teacher', 'teacher2', 'memory']) {
   vm.runInThisContext(fs.readFileSync(path.join(__dirname, '..', 'js', f + '.js'), 'utf8'), { filename: f + '.js' });
 }
 const G = globalThis.HG;
@@ -42,3 +42,9 @@ console.log('broken', bad.length, bad.slice(0, 5).map((n) => n.text));
 const stu = sim.students.reduce((m, s) => ((m[s.status] = (m[s.status] || 0) + 1), m), {});
 console.log('--- students', JSON.stringify(stu), 'grads', JSON.stringify(sim.log.filter((l) => l.t === 'grad').reduce((m, l) => ((m[l.y + (l.h !== null ? 'H' : 'O')] = (m[l.y + (l.h !== null ? 'H' : 'O')] || 0) + 1), m), {})));
 for (const n of sim.news.filter((n) => n && n.cat === 'school' && n.y === sim.year).filter((n, i) => i % 25 === 0)) console.log(G.fmtDate(n.y, n.d), plain(n.text));
+// 記憶と主要人物
+console.log('--- cast', sim.cast.length, JSON.stringify(sim.cast.reduce((m, e) => ((m[e.reason] = (m[e.reason] || 0) + 1), m), {})));
+const mems = {}; for (const h of sim.heroes) for (const m of h.mem || []) mems[m.t] = (mems[m.t] || 0) + 1;
+console.log('mem', JSON.stringify(mems), 'anniv', sim.anniv.length, 'kids', sim.kids.length);
+for (const n of sim.news.filter((n) => n && /雪辱|この人に注目|命日|救われた子ども|肩を並べた|頭を下げた/.test(n.text)).slice(-8)) console.log(G.fmtDate(n.y, n.d), plain(n.text));
+console.log('active cast', sim.activeCast().length, 'by year', JSON.stringify(sim.log.filter((l) => l.t === 'cast').reduce((m, l) => ((m[l.y] = (m[l.y] || 0) + 1), m), {})));

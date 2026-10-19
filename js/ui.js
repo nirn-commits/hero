@@ -15,7 +15,7 @@
     body: ['体', 0], tech: ['機', 186], sound: ['音', 330], poison: ['毒', 285], luck: ['運', 70], gravity: ['重', 230], life: ['命', 345], odd: ['奇', 168],
   };
   const REC_GROUPS = [
-    ['ヒーロー', [['death', '殉職'], ['retire', '引退'], ['scandal', 'スキャンダル'], ['hof', '殿堂入り'], ['legacy', '二世'], ['inherit', '継承'], ['milestone', '節目'], ['comeback', '現役復帰'], ['after', '引退後の消息'], ['record', '新記録'], ['mentor', '師弟']]],
+    ['ヒーロー', [['death', '殉職'], ['retire', '引退'], ['scandal', 'スキャンダル'], ['hof', '殿堂入り'], ['legacy', '二世'], ['inherit', '継承'], ['milestone', '節目'], ['comeback', '現役復帰'], ['after', '引退後の消息'], ['record', '新記録'], ['mentor', '師弟'], ['cast', '中心人物']]],
     ['物語', [['saga', '宿敵の決着'], ['boss', '黒幕'], ['fallen', '闇堕ち'], ['reform', '改心'], ['kaiju', '怪獣'], ['org', '組織壊滅'], ['serial', '連続事件'], ['vally', 'ヴィランの加勢']]],
     ['社会', [['era', '時代'], ['policy', '世論・制度'], ['agency', '事務所'], ['marry', '結婚'], ['world', '世界大会'], ['foreign', '国際手配']]],
     ['学園', [['grad', '卒業と進路'], ['school', '学園の出来事']]],
@@ -338,7 +338,8 @@
   }
   function itemHTML(n) {
     const fav = isFavNews(n);
-    return `<li class="it i${n.imp} c-${n.cat}${fav ? ' fav' : ''}"><span class="tag k-${n.cat}">${fav ? '★' : ''}${CAT[n.cat] || ''}</span><p>${rich(n.text)}</p></li>`;
+    const cs = !fav && isCastNews(n);
+    return `<li class="it i${n.imp} c-${n.cat}${fav ? ' fav' : ''}${cs ? ' cst' : ''}"><span class="tag k-${n.cat}">${fav ? '★' : cs ? '◆' : ''}${CAT[n.cat] || ''}</span><p>${rich(n.text)}</p></li>`;
   }
   // ---------- 号外 ----------
   const EXTRA = [
@@ -487,6 +488,7 @@
         ${predictCard()}
         <div class="duo">${watchCard()}${serialCard()}</div>
         <div class="duo">${coverCard()}${favPanel()}</div>
+        ${castCard()}
         ${schoolCard()}
         ${t ? `<figure class="fig"><figcaption><span>第${t.no}回 全国ヒーロー大会</span><span class="legend">${t.champ !== null ? '優勝 ' + link('h', sim.heroes[t.champ]) : '決勝は11月3日'}</span></figcaption>${bracket(t)}</figure>` : ''}
         <figure class="fig">
@@ -886,13 +888,14 @@
       boss: ['日付', '黒幕', '結果', '最後の一撃', '参戦', (l) => `${date(l)}<td>${Vv(l.v)}</td><td>${l.res === '撃破' ? '<span class="ok">撃破</span>' : `<span class="ng">${esc(l.res)}</span>`}</td><td>${H(l.h)}</td><td class="nu">${l.heroes.length}名</td>`],
       era: ['年', '新しい時代', 'それまで', '', '', (l) => `<td class="dt">${l.y}年</td><td><b>${esc(l.name)}</b></td><td>${esc(l.prev)}</td><td></td><td></td>`],
       policy: ['日付', '出来事', '支持率', '', '', (l) => `${date(l)}<td>${esc(l.kind)}</td><td class="nu">${l.ap}%</td><td></td><td></td>`],
+      cast: ['認定', '人物', 'きっかけ', '現在', '', (l) => { const x = l.h !== undefined ? sim.heroes[l.h] : sim.students[l.s]; const cur = l.h !== undefined ? (x.rank ? `${x.rank}位` : STATUS[x.status] || '') : x.status === 'hero' ? `ヒーロー ${link('h', sim.heroes[x.heroId])}` : SSTATUS[x.status]; return `${date(l)}<td>${l.h !== undefined ? H(l.h) : slinkFull(x)}</td><td><span class="st cast">◆ ${esc(D.castReasons[l.reason].tag)}</span></td><td>${cur}</td><td></td>`; }],
       grad: ['卒業', '生徒', '学校', '進路', '現在', (l) => { const st = sim.students[l.s]; const hh = l.h !== null ? sim.heroes[l.h] : null; return `<td class="dt">${l.y}年</td><td>${slinkFull(st)}</td><td>${esc(D.academies[l.sc].short)}</td><td>${hh ? '<span class="ok">ヒーロー</span>' : esc(l.career || st.road || '')}</td><td>${hh ? `${hlink(hh)}${hh.rank ? ` ${hh.rank}位` : statusChip(hh)}` : st.status === 'villain' ? `<span class="ng">ヴィラン</span> ${link('v', sim.villains[st.villainId])}` : st.status === 'hero' ? hlink(sim.heroes[st.heroId]) : ''}</td>`; }],
       school: ['日付', '出来事', '生徒・人物', '学校', '結果', (l) => `${date(l)}<td>${esc(l.kind)}</td><td>${l.s !== undefined ? slinkFull(sim.students[l.s]) : l.h !== undefined ? H(l.h) : '―'}</td><td>${esc(D.academies[l.sc].short)}</td><td>${l.res ? esc(l.res) : l.g ? `${l.g}年の部` : ''}</td>`],
       agency: ['日付', '出来事', '事務所', '関係者', '', (l) => `${date(l)}<td>${esc(l.kind)}</td><td>${esc(l.a)}${l.from && Array.isArray(l.from) ? '<br><small>' + l.from.map(esc).join('＋') + '</small>' : l.from ? '<br><small>移籍元 ' + esc(l.from) + '</small>' : ''}</td><td>${l.h !== undefined ? H(l.h) : '―'}</td><td></td>`],
     }[t];
     const head = cols.slice(0, 5).map((c) => `<th>${c}</th>`).join('');
     const shown = rows.slice(0, ui.recLimit);
-    const withNews = ['scandal', 'death', 'saga', 'boss', 'policy', 'serial', 'vally', 'record', 'school'].includes(t);
+    const withNews = ['scandal', 'death', 'saga', 'boss', 'policy', 'serial', 'vally', 'record', 'school', 'cast'].includes(t);
     body.innerHTML = `<div class="tablewrap"><table class="rec"><thead><tr>${head}</tr></thead><tbody>${shown.map((l) => `<tr>${cols[5](l)}</tr>${withNews ? `<tr class="sub"><td></td><td colspan="4">${newsLine(l)}</td></tr>` : ''}`).join('')}</tbody></table></div>
       ${rows.length > shown.length ? `<button type="button" class="more" data-more="rec">さらに表示（残り${rows.length - shown.length}件）</button>` : ''}`;
   }
@@ -1073,7 +1076,7 @@
     else path = `<p class="bio">夢は「${esc(s.dream)}」。${s.grade === 3 ? '1月のヒーロー資格試験に向けて準備中。' : ''}</p>`;
     const life = s.ev.slice().reverse();
     openModal(`
-      <div class="pf-head"><span class="em big sch" style="--sc:${d.color}">${esc(d.short.slice(0, 1))}</span><div class="pf-title"><h2 id="modalTitle">${esc(s.real)}</h2><p class="pf-epi">${s.hname ? `ヒーロー名「${esc(s.hname)}」` : 'ヒーロー名はまだ決まっていない'}<span>${esc(d.name)}${s.status === 'enrolled' ? `　${s.grade}年生` : `　${s.gradYear ?? ''}年${s.status === 'dropped' ? '退学' : '卒業'}`}</span></p></div>${gr ? `<span class="rkbig">${gr[0]}<small>/${gr[1]}</small></span>` : ''}${sfavBtn(s)}${sStatus(s)}</div>
+      <div class="pf-head"><span class="em big sch" style="--sc:${d.color}">${esc(d.short.slice(0, 1))}</span><div class="pf-title"><h2 id="modalTitle">${esc(s.real)}</h2><p class="pf-epi">${s.hname ? `ヒーロー名「${esc(s.hname)}」` : 'ヒーロー名はまだ決まっていない'}<span>${esc(d.name)}${s.status === 'enrolled' ? `　${s.grade}年生` : `　${s.gradYear ?? ''}年${s.status === 'dropped' ? '退学' : '卒業'}`}</span></p></div>${gr ? `<span class="rkbig">${gr[0]}<small>/${gr[1]}</small></span>` : ''}${sfavBtn(s)}${sStatus(s)}${castTag(s)}</div>
       ${s.honors.length ? `<div class="titles">${s.honors.map((t) => `<span>${t.y} ${esc(t.t)}</span>`).join('')}</div>` : ''}
       <div class="pf-cards">
         <section class="pcard"><h4>基本データ</h4>${dl([
@@ -1251,6 +1254,117 @@
     clearInterval(extraTimer);
   }
 
+  // ---------- 記憶・主要人物・あらすじ ----------
+  const castTag = (x) => (x && x.cast && D.castReasons[x.cast] ? `<span class="st cast" title="物語の中心人物">◆ ${esc(D.castReasons[x.cast].tag)}</span>` : '');
+  const isCastNews = (n) => (n.h && n.h.some((id) => sim.heroes[id] && sim.heroes[id].cast)) || (n.s && n.s.some((id) => sim.students[id] && sim.students[id].cast));
+  const MEM_TEXT = {
+    lost: (m) => `${link('v', sim.villains[m.o])}に敗れる${m.done ? '（のちに雪辱）' : ''}`,
+    revenge: (m) => `${m.since}年に敗れた${link('v', sim.villains[m.o])}に雪辱を果たす`,
+    savedBy: (m) => `窮地を${link('h', sim.heroes[m.o])}に救われる`,
+    saved: (m) => `窮地の${link('h', sim.heroes[m.o])}を救う`,
+    child: (m) => `${m.since}年、幼いころに${link('h', sim.heroes[m.o])}に救われた子どもだった`,
+    savedChild: (m) => `${m.since}年に救った子ども${link('h', sim.heroes[m.o])}が、ヒーローになって現れる`,
+    lostMentor: (m) => `師匠${link('h', sim.heroes[m.o])}を失う`,
+    lostSpouse: (m) => `伴侶${link('h', sim.heroes[m.o])}を失う`,
+    lostRival: (m) => `ライバル${link('h', sim.heroes[m.o])}を失う`,
+    avenge: (m) => `仲間${link('h', sim.heroes[m.for])}の仇${link('v', sim.villains[m.o])}を追い始める`,
+    cast: (m) => `物語の中心人物に（${esc(D.castReasons[m.reason] ? D.castReasons[m.reason].tag : '')}）`,
+  };
+  function memList(h) {
+    const ms = (h.mem || []).filter((m) => MEM_TEXT[m.t] && !(m.t === 'lost' && !m.done && (h.mem || []).filter((x) => x.t === 'lost').length > 6));
+    if (!ms.length) return '<p class="mapnote">まだ心に残る出来事はありません。誰かに救われたり、敗れた相手に雪辱を果たしたりすると、ここに残ります。</p>';
+    return `<ol class="life">${ms.slice().reverse().slice(0, 20).map((m) => `<li class="lk-${m.t === 'revenge' || m.t === 'cast' ? 'award' : m.t.startsWith('lost') ? 'death' : 'debut'}"><span class="ly">${m.y}</span><b>${{ lost: '敗北', revenge: '雪辱', savedBy: '恩人', saved: '救出', child: '原点', savedChild: '再会', lostMentor: '別れ', lostSpouse: '別れ', lostRival: '別れ', avenge: '誓い', cast: '注目' }[m.t]}</b><span>${MEM_TEXT[m.t](m)}</span></li>`).join('')}</ol>`;
+  }
+
+  // 1年のあらすじを文章にする（画面専用の乱数で言い回しを変える）
+  function synopsis(h, year) {
+    const rnd = localRng(`${sim.seed}:syn:${h.id}:${year}`);
+    const pick = (a) => a[Math.floor(rnd() * a.length)];
+    const nm = link('h', h);
+    const H2 = (id) => link('h', sim.heroes[id]);
+    const V2 = (id) => link('v', sim.villains[id]);
+    const ev = [];
+    const add = (d, w, s) => ev.push({ d, w, s });
+    for (const l of sim.log) {
+      if (l.y !== year) continue;
+      const me = l.h === h.id;
+      switch (l.t) {
+        case 'scandal': if (me) add(l.d, 6, pick([`スキャンダルが報じられ、厳しい批判を浴びた`, `思わぬ騒動で世間を騒がせてしまった`])); break;
+        case 'marry': if (me || l.h2 === h.id) add(l.d, 8, `${H2(me ? l.h2 : l.h)}と結婚した`); break;
+        case 'tourney': if (me) add(l.d, 9, '全国大会を勝ち抜き、頂点に立った'); else if (l.runner === h.id) add(l.d, 7, `全国大会の決勝まで進んだが、${H2(l.h)}に敗れた`); break;
+        case 'saga': if (me) add(l.d, 9, l.res === '決着' ? `長年の宿敵${V2(l.v)}との因縁に、ついに決着をつけた` : `宿敵${V2(l.v)}との因縁は、決着を見ないまま終わった`); break;
+        case 'boss': if (l.heroes && l.heroes.includes(h.id)) add(l.d, 9, l.res === '撃破' ? `「審判の日」の決戦に加わり、黒幕${V2(l.v)}を打ち倒した` : `「審判の日」の決戦に挑んだが、黒幕${V2(l.v)}を止められなかった`); break;
+        case 'inherit': if (me) add(l.d, 8, `師匠${H2(l.m)}の技を受け継いだ`); else if (l.m === h.id) add(l.d, 5, `弟子の${H2(l.h)}に技を託した`); break;
+        case 'comeback': if (me) add(l.d, 8, `${l.years}年ぶりに現役へ復帰した`); break;
+        case 'record': if (me) add(l.d, 7, `${esc(D.records[l.key].label)}の歴代記録を塗り替えた`); break;
+        case 'mentor': if (me || l.m === h.id) add(l.d, 5, l.kind === '和解' ? `ぎくしゃくしていた${me ? '師匠' + H2(l.m) : '弟子' + H2(l.h)}と和解した` : `${me ? '師匠' + H2(l.m) : '弟子' + H2(l.h)}との関係がこじれた`); break;
+        case 'serial': if (me) add(l.d, 7, l.res === '解決' ? `連続事件『${esc(l.title)}』の犯人${V2(l.v)}を追い詰め、解決に導いた` : `連続事件『${esc(l.title)}』に挑んだが、思うような結末にはならなかった`); break;
+        case 'world': if (me) add(l.d, 8, l.place === 1 ? '日本代表として世界大会に出場し、世界一に輝いた' : `日本代表として世界大会に出場し、${l.place}位に入った`); break;
+        case 'kaiju': if (me && l.res === '撃破') add(l.d, 6, `怪獣${V2(l.v)}にとどめを刺した`); break;
+        case 'org': if (me) add(l.d, 7, `ヴィラン組織${link('o', sim.orgs[l.o])}への突入を率い、壊滅させた`); break;
+        case 'hof': if (me) add(l.d, 9, '殿堂入りを果たした'); break;
+        case 'retire': if (me) add(l.d, 10, `活動${l.career}年でヒーローを引退した`); break;
+        case 'death': if (me) add(l.d, 10, l.v !== null ? `${V2(l.v)}との戦いで命を落とした` : '救助活動のさなかに殉職した'); break;
+        case 'fallen': if (me) add(l.d, 10, `ヒーローをやめ、ヴィラン${V2(l.v)}として姿を現した`); break;
+        case 'legacy': if (l.parent === h.id) add(l.d, 6, `子の${H2(l.h)}がヒーローとしてデビューした`); break;
+        case 'milestone': if (me && (l.key === 'top1' || l.key === 'cap1')) add(l.d, l.key === 'top1' ? 8 : 4, l.key === 'top1' ? 'ついにランキング1位の座についた' : '初めてヴィランを検挙した'); break;
+        default: break;
+      }
+    }
+    for (const m of h.mem || []) {
+      if (m.y !== year) continue;
+      if (m.t === 'revenge') add(m.d, 8, `${m.since}年に敗れた${V2(m.o)}に、雪辱を果たした`);
+      if (m.t === 'savedBy') add(m.d, 6, `窮地に陥ったところを${H2(m.o)}に救われた`);
+      if (m.t === 'saved') add(m.d, 5, `仲間の${H2(m.o)}の窮地を救った`);
+      if (m.t === 'savedChild') add(m.d, 8, `${m.since}年に救った子どもが、ヒーロー${H2(m.o)}になって目の前に現れた`);
+      if (m.t === 'lostMentor') add(m.d, 9, `師匠${H2(m.o)}を失った`);
+      if (m.t === 'lostSpouse') add(m.d, 9, `伴侶の${H2(m.o)}を失った`);
+      if (m.t === 'lostRival') add(m.d, 8, `ライバルの${H2(m.o)}を失った`);
+      if (m.t === 'lost' && rnd() < 0.5) add(m.d, 3, `${V2(m.o)}に敗れ、悔しさを味わった`);
+    }
+    const covers = sim.covers.filter((c) => c.y === year && c.h === h.id).length;
+    if (covers >= 2) add(200, 3, `週刊誌の表紙を${covers}回飾った`);
+    const months = sim.monthTop.filter((m) => m.y === year && m.id === h.id).length;
+    if (months) add(Math.min(300, months * 30), 5, `月間ランキングで${months}度1位になった`);
+    const prev = (h.yearRanks || []).find((x) => x[0] === year - 1);
+    const fin = year === sim.year && !sim.ended ? h.rank : ((h.yearRanks || []).find((x) => x[0] === year) || [])[1];
+    const titles = h.titles.filter((t) => t.y === year && !/^宿敵/.test(t.title));
+    if (h.debutYear > year) return '';
+    // 重みの高い出来事を選んで、時系列に並べる
+    const chosen = ev.sort((a, b) => b.w - a.w).slice(0, 9).sort((a, b) => a.d - b.d);
+    const seasons = [[0, 90, ['年明け', '冬のあいだ']], [90, 181, ['春', '新年度に入ると']], [181, 273, ['夏', '夏場']], [273, 400, ['秋から年末にかけて', '秋以降']]];
+    const conn = ['その後、', 'さらに', '続けて', 'そして', ''];
+    const paras = [];
+    paras.push(h.debutYear === year ? `${year}年、${nm}はヒーローとしてデビューした。` : `${year}年の${nm}は、${prev ? prev[1] + '位' : '圏外'}から一年を始めた。`);
+    for (const [a, b, lead] of seasons) {
+      const xs = chosen.filter((e) => e.d >= a && e.d < b);
+      if (!xs.length) continue;
+      paras.push(`${pick(lead)}、${xs.map((e, i) => (i ? pick(conn) : '') + e.s).join('。')}。`);
+    }
+    if (paras.length === 1) paras.push(pick(['大きな出来事こそなかったが、日々の現場を一つずつ積み重ねた一年だった。', '目立つ見出しはなかったものの、持ち場を守り続けた。']));
+    let end = '';
+    if (fin) end = `${fin}位で一年を終えた。`;
+    if (titles.length) end += `年末には${titles.map((t) => `「${esc(t.title)}」`).join('と')}に選ばれた。`;
+    if (prev && fin) end += fin <= prev[1] - 30 ? pick(['大きく飛躍した一年だった。', '大きな手応えをつかんだ一年になった。']) : fin >= prev[1] + 30 ? pick(['悔しさの残る一年だった。', '試練の一年となった。']) : '';
+    if (end) paras.push(end);
+    return paras.map((p) => `<p>${p}</p>`).join('');
+  }
+  function synopsisSection(h) {
+    const years = [];
+    for (let y = Math.max(h.debutYear, sim.startYear ?? sim.year); y <= (h.endYear || sim.year); y++) years.push(y);
+    if (!years.length) return '';
+    const cur = ui.synYear && years.includes(ui.synYear) ? ui.synYear : years[years.length - 1];
+    return `<div class="seg sm" role="group" aria-label="年">${years.slice(-12).map((y) => `<button type="button" data-syn="${h.id}:${y}" aria-pressed="${y === cur}">${y}</button>`).join('')}</div><div class="synopsis" id="syn-${h.id}">${synopsis(h, cur) || '<p class="mapnote">この年の記録はありません。</p>'}</div>`;
+  }
+  function castCard() {
+    const act = sim.activeCast ? sim.activeCast() : [];
+    if (!act.length) return '';
+    const list = act.slice().reverse().slice(0, 10);
+    return `<figure class="fig"><figcaption><span>物語の中心人物<small>${act.length}名</small></span><button type="button" class="linkbtn" data-gorec="cast">すべて見る</button></figcaption>
+      <ul class="castlist">${list.map((e) => { const x = e.k === 'h' ? sim.heroes[e.id] : sim.students[e.id]; return `<li>${e.k === 'h' ? hlink(x) : slinkFull(x)}${castTag(x)}<small>${e.k === 'h' && x.rank ? x.rank + '位・' : ''}${e.y}年〜</small></li>`; }).join('')}</ul>
+      <p class="mapnote">強さだけでなく、正義感・雪辱・恩返し・継承・喪失など、さまざまなきっかけで選ばれます。選ばれた人物は、日常の場面や命日の出来事が描かれやすくなります。</p></figure>`;
+  }
+
   // ---------- 詳細 ----------
   function openModal(html) {
     $('#modalBody').innerHTML = html;
@@ -1401,6 +1515,7 @@
     openModal(`
       <div class="pf-head">${emblem(h, true)}<div class="pf-title"><h2 id="modalTitle">${esc(h.name)}</h2><p class="pf-epi">${h.epithet ? `「${esc(h.epithet)}」` : ''}${h.nickname ? `<span>愛称 ${esc(h.nickname)}</span>` : ''}</p></div>${h.rank ? `<span class="rkbig">${h.rank}<small>位</small></span>` : ''}${favBtn(h)}${statusChip(h)}</div>
       ${h.catch ? `<p class="catch">「${esc(h.catch)}」</p>` : ''}
+      ${h.cast ? `<p class="castnote">${castTag(h)} 物語の中心人物（${(sim.cast.find((e) => e.k === 'h' && e.id === h.id) || {}).y || ''}年〜）</p>` : ''}
       ${h.titles.length ? `<div class="titles">${h.titles.map((t) => `<span>${t.y} ${esc(t.title)}</span>`).join('')}</div>` : ''}
       <div class="pf-cards">
         <section class="pcard"><h4>基本データ</h4>${dl([
@@ -1429,6 +1544,8 @@
         <section class="pcard"><h4>ファンの声と支持層</h4>${fanSection(h)}</section>
         <section class="pcard"><h4>語録</h4>${quoteList(h)}</section>
         ${rel.length ? `<section class="pcard"><h4>人間関係</h4>${dl(rel)}</section>` : ''}
+        <section class="pcard wide"><h4>年ごとのあらすじ</h4>${synopsisSection(h)}</section>
+        <section class="pcard"><h4>縁と記憶</h4>${memList(h)}</section>
         <section class="pcard wide"><h4>人生年表</h4>${lifeTimeline(h)}</section>
       </div>
       <h4 class="sect">活動記録</h4>${histList(h)}`);
@@ -1498,6 +1615,12 @@
       ${(() => { const tt = sim.tourneys.find((x) => x.y === a.year && x.champ !== null); const bs = sim.log.filter((l) => l.t === 'boss' && l.y === a.year); const sg = sim.log.filter((l) => l.t === 'saga' && l.y === a.year && l.res === '決着'); return (tt || bs.length || sg.length) ? `<h4>今年の名場面</h4><ul class="list">${tt ? `<li><span class="k">全国大会</span>${hlink(sim.heroes[tt.champ])}が優勝</li>` : ''}${bs.map((l) => `<li><span class="k">審判の日</span>${logSummary(l)}</li>`).join('')}${sg.map((l) => `<li><span class="k">因縁の決着</span>${logSummary(l)}</li>`).join('')}</ul>` : ''; })()}
       ${sim.chronicles.length && sim.chronicles[sim.chronicles.length - 1].to === a.year ? `<div class="chron-note"><b>この10年が年代記にまとめられました。</b><button type="button" class="btn alt" data-chron="${sim.chronicles.length - 1}">年代記を読む</button></div>` : ''}
       ${sim.teacher ? `<h4>担任として</h4><p class="bio">${esc(sim.teacher.name)}先生（${esc(D.academies[sim.teacher.school].short)}）の評判は${Math.round(sim.teacher.rep)}・「${esc(sim.teacherTitle())}」。ヒーローになった教え子は${sim.students.filter((x) => x.taught && x.status === 'hero').length}名。</p>` : ''}
+      ${(() => {
+        const ids = [...ui.favs].concat(sim.activeCast().filter((e) => e.k === 'h').map((e) => e.id));
+        const uniq = [...new Set(ids)].map((id) => sim.heroes[id]).filter((h) => h && h.debutYear <= a.year && (!h.endYear || h.endYear >= a.year)).slice(0, 10);
+        if (!uniq.length) return '';
+        return `<h4>${a.year}年のあらすじ<small>推しと物語の中心人物</small></h4>${uniq.map((h, i) => `<details class="syn"${i === 0 ? ' open' : ''}><summary>${hlink(h)}${ui.favs.has(h.id) ? '<span class="st gold">推し</span>' : ''}${castTag(h)}</summary><div class="synopsis">${synopsis(h, a.year)}</div></details>`).join('')}`;
+      })()}
       ${hofs.length ? `<h4>今年の殿堂入り</h4><p class="bio">${hofs.map((l) => hlink(sim.heroes[l.h])).join('　')}</p>` : ''}
       ${(() => {
         const p = lsGet(predKey())[a.year];
@@ -1617,6 +1740,10 @@
         if (currentPane() === 'teach') renderTeach();
         return;
       }
+      const sy = e.target.closest('[data-syn]');
+      if (sy) { const [hid, y] = sy.dataset.syn.split(':').map(Number); ui.synYear = y; const box = $('#syn-' + hid); if (box) box.innerHTML = synopsis(sim.heroes[hid], y) || '<p class="mapnote">この年の記録はありません。</p>'; sy.parentElement.querySelectorAll('[data-syn]').forEach((b) => b.setAttribute('aria-pressed', String(b === sy))); return; }
+      const gr = e.target.closest('[data-gorec]');
+      if (gr) { ui.recType = gr.dataset.gorec; save(); setTab('records'); return; }
       const tsb = e.target.closest('[data-tsub]');
       if (tsb) { ui.tsub = tsb.dataset.tsub; ui.teachMsg = ''; renderTeach(); return; }
       const pr = e.target.closest('[data-preset]');
