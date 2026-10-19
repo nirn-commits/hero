@@ -69,7 +69,8 @@
   P.schoolYear = function () { return this.day < 90 ? this.year - 1 : this.year; };
   P.nameStudent = function (s) {
     const pref = this.prefObj(s.pref);
-    s.hname = Gen.uniq(this, () => Gen.heroNameRaw(s.gender, s.power, pref));
+    const sur = D.surnames.find((x) => x[0] === s.real.split(' ')[0]);
+    s.hname = Gen.uniq(this, () => Gen.heroNameRaw(s.gender, s.power, pref, sur ? sur[1] : null, true));
   };
   P.growStudent = function (s, quiet) {
     const d = D.academies[s.school];

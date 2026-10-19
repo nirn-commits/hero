@@ -432,6 +432,8 @@
     const pane = currentPane();
     $('.layout').dataset.view = tab;
     document.querySelectorAll('.tab').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === (tab === 'feed' && isWide() ? 'dash' : tab))));
+    const sel = document.querySelector('.tab[aria-selected="true"]');
+    if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     document.querySelectorAll('.pane').forEach((p) => (p.hidden = p.id !== 'pane-' + pane));
     renderSide(true);
   }
@@ -485,26 +487,27 @@
       <h2>${sim.year}年の概況<small>${G.fmtDate(sim.year, lastDay())}時点</small></h2>
       ${banners()}
       <div class="kpis">${k(Math.round(sim.approval) + '%', 'ヒーロー支持率', sim.approval < 40 ? 'bad' : '')}${k(num(inc), '事件')}${k(handled ? Math.round((solved / handled) * 100) + '%' : '–', '解決率')}${k(st.captures, 'ヴィラン検挙')}${k(st.scandals, 'スキャンダル', 'warn')}${k(st.deaths, '殉職', st.deaths ? 'bad' : '')}${k(sim.ranked.length, '現役ヒーロー')}${k(freeV, '逃亡中ヴィラン')}${k(orgs, '活動中の組織')}</div>
+      ${pfNav([['d-front', '一面'], ['d-arc', '連載'], ['d-cast', '中心人物'], ['d-school', '学園'], ['d-pred', '予想'], ['d-map', '地図'], ['d-chart', 'グラフ'], ['d-events', '出来事']]).replace('pfnav', 'pfnav dashnav')}
       <div class="dash-grid">
-        ${frontPage()}
-        ${predictCard()}
+        ${anc(frontPage(), 'd-front')}
+        ${anc(predictCard(), 'd-pred')}
         <div class="duo">${watchCard()}${serialCard()}</div>
         <div class="duo">${coverCard()}${favPanel()}</div>
-        ${arcCard()}
-        ${castCard()}
-        ${schoolCard()}
+        ${anc(arcCard(), 'd-arc')}
+        ${anc(castCard(), 'd-cast')}
+        ${anc(schoolCard(), 'd-school')}
         ${t ? `<figure class="fig"><figcaption><span>第${t.no}回 全国ヒーロー大会</span><span class="legend">${t.champ !== null ? '優勝 ' + link('h', sim.heroes[t.champ]) : '決勝は11月3日'}</span></figcaption>${bracket(t)}</figure>` : ''}
         <figure class="fig">
           <figcaption><span>ヒーロー支持率の推移（${sim.year}年）</span><span class="legend">38%を下回ると制度改革</span></figcaption>
           ${approvalChart()}
         </figure>
-        <figure class="fig">
+        <figure class="fig" id="d-map">
           <figcaption><span>地域別の状況</span>
             <span class="seg sm" role="group" aria-label="地図の指標">${[['inc', '事件数'], ['hero', 'ヒーロー数'], ['villain', 'ヴィラン']].map(([m, l]) => `<button type="button" data-map="${m}" aria-pressed="${ui.mapMetric === m}">${l}</button>`).join('')}</span></figcaption>
           ${tileMap()}
         </figure>
         ${safetyCard()}
-        <figure class="fig">
+        <figure class="fig" id="d-chart">
           <figcaption><span>トップ4の順位推移（${sim.year}年）</span></figcaption>
           ${bumpChart()}
         </figure>
@@ -512,7 +515,7 @@
           <figcaption><span>月別の事件数</span><span class="legend"><i class="sw s1"></i>解決 <i class="sw s0"></i>未解決</span></figcaption>
           ${monthBars()}
         </figure>
-        <figure class="fig">
+        <figure class="fig" id="d-events">
           <figcaption><span>今年の大きな出来事</span><button type="button" class="linkbtn" data-goto="records">記録をすべて見る</button></figcaption>
           ${events.length ? `<ul class="timeline">${events.map((l) => `<li><span class="tl-tag t-${l.t}">${REC_TYPES.find((r) => r[0] === l.t)[1]}</span><span class="tl-date">${monthDay(l)}</span><div>${logSummary(l)}</div></li>`).join('')}</ul>` : '<p class="empty">まだ大きな出来事はありません。</p>'}
         </figure>
@@ -926,7 +929,7 @@
     const q = $('#rosterQ').value.trim();
     const sort = $('#rosterSort').value;
     const stf = $('#rosterStatus').value;
-    let list = sim.heroes.filter((h) => (stf === 'live' ? h.rank !== null : stf === 'gone' ? h.rank === null : true));
+    let list = sim.heroes.filter((h) => (stf === 'live' ? h.rank !== null : stf === 'gone' ? h.rank === null : stf === 'fav' ? ui.favs.has(h.id) : stf === 'cast' ? !!h.cast : true));
     if (q) list = list.filter((h) => [h.name, h.power.name, h.pref, h.city, h.agency, h.real, ...h.traits, ...h.oldNames].join(' ').includes(q));
     const key = {
       rank: (h) => (h.rank === null ? 1e6 + h.id : h.rank), fame: (h) => -h.fame, captures: (h) => -h.rec.captures,
@@ -943,12 +946,18 @@
 
   function renderVillains() {
     const f = $('#vStatus').value;
+    const q = ($('#vQ') && $('#vQ').value.trim()) || '';
+    const sort = ($('#vSort') && $('#vSort').value) || 'threat';
     const tw = { S: 4, A: 3, B: 2, C: 1 };
-    const list = sim.villains.filter((v) => (f === 'kaiju' ? v.kind === 'kaiju' : f === 'all' ? true : v.kind === 'villain' && v.status === f));
-    list.sort((a, b) => tw[b.threat] - tw[a.threat] || b.notoriety - a.notoriety);
+    let list = sim.villains.filter((v) => (f === 'kaiju' ? v.kind === 'kaiju' : f === 'all' ? true : v.kind === 'villain' && v.status === f));
+    if (q) list = list.filter((v) => [v.name, v.alias || '', v.power.name, v.pref, v.real, v.org !== null ? sim.orgs[v.org].name : ''].join(' ').includes(q));
+    const key = { threat: (v) => -(tw[v.threat] * 1000 + v.notoriety), bounty: (v) => -sim.bounty(v), crimes: (v) => -v.crimes, wins: (v) => -Object.values(v.vs || {}).reduce((a, r) => a + r[0], 0), new: (v) => -v.id }[sort];
+    list.sort((a, b) => key(a) - key(b));
     const shown = list.slice(0, ui.vLimit);
-    $('#villainList').innerHTML = `<h2>ヴィラン${f === 'kaiju' ? '・怪獣' : ''}<small>${list.length}件</small></h2>` + (list.length
-      ? `<table class="rk-table"><thead><tr><th>危険度</th><th>状態</th><th>ヴィラン</th><th>悪名</th></tr></thead><tbody>${shown.map((v) => `<tr><td class="rk"><span class="threat t${v.threat}">${v.threat}</span></td><td class="mv">${esc(VSTATUS[v.status] || '')}</td><td class="who">${link('v', v)}<small>${esc(v.power.name)}${v.org !== null ? '・' + esc(sim.orgs[v.org].name) + (v.orgRank === 'boss' ? '首領' : v.orgRank === 'exec' ? '幹部' : '') : ''}${v.nemesis !== null ? '・宿敵 ' + esc(sim.heroes[v.nemesis].name) : ''}</small></td><td class="sc">${v.kind === 'kaiju' ? '' : '悪名' + v.notoriety}</td></tr>`).join('')}</tbody></table>
+    const top = f === 'free' && !q ? sim.villains.filter((v) => v.kind === 'villain' && v.status === 'free').sort((a, b) => sim.bounty(b) - sim.bounty(a)).slice(0, 6) : [];
+    const right = (v) => (v.kind === 'kaiju' ? '' : sort === 'crimes' ? `犯行${v.crimes}` : sort === 'wins' ? `勝利${Object.values(v.vs || {}).reduce((a, r) => a + r[0], 0)}` : yen2(sim.bounty(v)));
+    $('#villainList').innerHTML = (top.length ? `<h2>指名手配<small>懸賞金の高い順</small></h2><div class="posters">${top.map(wantedPoster).join('')}</div>` : '') + `<h2>ヴィラン${f === 'kaiju' ? '・怪獣' : ''}<small>${list.length}件</small></h2>` + (list.length
+      ? `<table class="rk-table"><thead><tr><th>危険度</th><th>状態</th><th>ヴィラン</th><th>${sort === 'crimes' ? '犯行' : sort === 'wins' ? '勝利' : '懸賞金'}</th></tr></thead><tbody>${shown.map((v) => `<tr><td class="rk"><span class="threat t${v.threat}">${v.threat}</span></td><td class="mv">${esc(VSTATUS[v.status] || '')}</td><td class="who">${link('v', v)}<small>${v.alias ? '「' + esc(v.alias) + '」・' : ''}${esc(v.power.name)}${v.org !== null ? '・' + esc(sim.orgs[v.org].name) + (v.orgRank === 'boss' ? '首領' : v.orgRank === 'exec' ? '幹部' : '') : ''}${v.nemesis !== null ? '・宿敵 ' + esc(sim.heroes[v.nemesis].name) : ''}${v.lastSeen && v.status === 'free' ? `・最終目撃 ${esc(v.lastSeen.pref)}` : ''}</small></td><td class="sc">${right(v)}</td></tr>`).join('')}</tbody></table>
         ${list.length > shown.length ? `<button type="button" class="more" data-more="villain">さらに表示</button>` : ''}`
       : '<p class="empty">該当するヴィランはいません。</p>');
   }
@@ -1101,6 +1110,7 @@
         <section class="pcard"><h4>進路</h4>${path}</section>
         ${rel.length ? `<section class="pcard"><h4>人間関係</h4>${dl(rel)}</section>` : ''}
         <section class="pcard"><h4>語録</h4>${quoteList(s)}</section>
+        <section class="pcard wide"><h4>相関図</h4>${studentGraph(s)}</section>
         <section class="pcard wide"><h4>学園年表</h4>${life.length ? `<ol class="life">${s.ev.map((e) => `<li><span class="ly">${e.y}</span><b>${esc(e.t)}</b><span>${esc(e.x)}</span></li>`).join('')}</ol>` : '<p class="mapnote">まだ記録はありません。</p>'}</section>
       </div>
       <h4 class="sect">学園でのできごと</h4>${histList(s)}`);
@@ -1407,13 +1417,184 @@
     if (!on && ui.tab === 'teach') setTab('dash');
   }
 
+  // ---------- 相関図 ----------
+  // nodes: { k:'h'|'v'|'s'|'o'|'t', e, rel, tone:'pos'|'neg'|'neu' }
+  function egoGraph(center, ck, nodes) {
+    const seen = new Set();
+    nodes = nodes.filter((n) => n.e && !seen.has(n.k + n.e.id) && seen.add(n.k + n.e.id)).slice(0, 14);
+    if (!nodes.length) return '<p class="mapnote">まだ相関図に載せる関係はありません。</p>';
+    const W = 640, Hh = nodes.length > 8 ? 420 : 340, cx = W / 2, cy = Hh / 2;
+    const rx = 245, ry = Hh / 2 - 38;
+    const nm = (k, e) => (k === 's' ? e.real : e.name);
+    const trunc = (s) => (s.length > 9 ? s.slice(0, 8) + '…' : s);
+    const pos = nodes.map((n, i) => { const a = -Math.PI / 2 + (i * 2 * Math.PI) / nodes.length; return [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]; });
+    const edges = nodes.map((n, i) => { const [x, y] = pos[i]; const mx = cx + (x - cx) * 0.55, my = cy + (y - cy) * 0.55; return `<line class="ge ${n.tone}" x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/><text class="gl ${n.tone}" x="${mx.toFixed(1)}" y="${(my - 4).toFixed(1)}" text-anchor="middle">${esc(n.rel)}</text>`; }).join('');
+    const box = (x, y, k, e, label, isC) => { const t = trunc(label); const w = Math.max(64, t.length * 13 + 18); return `<g class="gnode k${k}${isC ? ' c' : ''}" data-k="${k}" data-id="${e.id}" tabindex="0" role="button" aria-label="${esc(label)}"><rect x="${(x - w / 2).toFixed(1)}" y="${(y - 15).toFixed(1)}" width="${w}" height="30" rx="8"/><text x="${x.toFixed(1)}" y="${(y + 5).toFixed(1)}" text-anchor="middle">${esc(t)}</text></g>`; };
+    const nodesSvg = nodes.map((n, i) => box(pos[i][0], pos[i][1], n.k, n.e, nm(n.k, n.e), false)).join('');
+    return `<div class="egowrap"><svg class="ego" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="${esc(nm(ck, center))}の相関図">${edges}${box(cx, cy, ck, center, nm(ck, center), true)}${nodesSvg}</svg></div>
+      <p class="mapnote egolegend"><span class="lg kh">ヒーロー</span><span class="lg kv">ヴィラン</span><span class="lg ks">生徒</span><span class="lg ko">組織・チーム</span>　線の色：<span class="lt pos">味方・好意</span><span class="lt neg">敵対</span><span class="lt neu">競い合い・その他</span>　名前を押すと詳細へ</p>`;
+  }
+  function heroGraph(h) {
+    const n = [];
+    const He = (id) => sim.heroes[id];
+    if (h.spouse !== null) n.push({ k: 'h', e: He(h.spouse), rel: '伴侶', tone: 'pos' });
+    if (h.partner !== null) n.push({ k: 'h', e: He(h.partner), rel: '交際中', tone: 'pos' });
+    if (h.lateSpouse !== undefined) n.push({ k: 'h', e: He(h.lateSpouse), rel: '亡き伴侶', tone: 'pos' });
+    if (h.mentor !== null) n.push({ k: 'h', e: He(h.mentor), rel: h.feud ? '師匠（確執）' : '師匠', tone: h.feud ? 'neu' : 'pos' });
+    for (const m of h.mem || []) if (m.t === 'lostMentor') n.push({ k: 'h', e: He(m.o), rel: '亡き師匠', tone: 'pos' });
+    for (const id of h.apprentices) n.push({ k: 'h', e: He(id), rel: '弟子', tone: 'pos' });
+    if (h.parent !== null && h.parent !== undefined) n.push({ k: 'h', e: He(h.parent), rel: '親', tone: 'pos' });
+    if (h.child !== null && h.child !== undefined) n.push({ k: 'h', e: He(h.child), rel: '子', tone: 'pos' });
+    if (h.rival !== null) n.push({ k: 'h', e: He(h.rival), rel: 'ライバル', tone: 'neu' });
+    if (h.nemesis !== null) n.push({ k: 'v', e: sim.villains[h.nemesis], rel: '宿敵', tone: 'neg' });
+    for (const m of h.mem || []) {
+      if (m.t === 'savedBy' || m.t === 'child') n.push({ k: 'h', e: He(m.o), rel: '命の恩人', tone: 'pos' });
+      if (m.t === 'saved' || m.t === 'savedChild') n.push({ k: 'h', e: He(m.o), rel: m.t === 'savedChild' ? '救った子' : '救った仲間', tone: 'pos' });
+      if (m.t === 'avenge') n.push({ k: 'v', e: sim.villains[m.o], rel: '仲間の仇', tone: 'neg' });
+    }
+    if (h.team !== null) n.push({ k: 't', e: sim.teams[h.team], rel: 'チーム', tone: 'pos' });
+    if (h.sid !== undefined) n.push({ k: 's', e: sim.students[h.sid], rel: '学生時代', tone: 'neu' });
+    for (const s of sim.students) if (s.status === 'enrolled' && s.intern === h.id) n.push({ k: 's', e: s, rel: 'インターン生', tone: 'pos' });
+    const foes = [];
+    for (const v of sim.villains) if (v.vs && v.vs[h.id] && v.id !== h.nemesis) foes.push([v, v.vs[h.id][0] + v.vs[h.id][1], v.vs[h.id]]);
+    foes.sort((a, b) => b[1] - a[1]);
+    for (const [v, c, r] of foes.slice(0, 3)) if (c >= 2) n.push({ k: 'v', e: v, rel: `因縁 ${r[1]}勝${r[0]}敗`, tone: 'neg' });
+    return egoGraph(h, 'h', n);
+  }
+  function villainGraph(v) {
+    const n = [];
+    if (v.org !== null) {
+      const o = sim.orgs[v.org];
+      n.push({ k: 'o', e: o, rel: v.orgRank === 'boss' ? '率いる組織' : '所属', tone: 'neu' });
+      if (v.orgRank !== 'boss' && o.boss !== null) n.push({ k: 'v', e: sim.villains[o.boss], rel: '首領', tone: 'neu' });
+      for (const m of sim.orgMembers(o).filter((x) => x !== v && x.id !== o.boss).slice(0, 3)) n.push({ k: 'v', e: m, rel: '仲間', tone: 'neu' });
+    }
+    if (v.nemesis !== null) n.push({ k: 'h', e: sim.heroes[v.nemesis], rel: '宿敵', tone: 'neg' });
+    if (v.grudge !== undefined && v.grudge !== null) n.push({ k: 'h', e: sim.heroes[v.grudge], rel: '復讐の相手', tone: 'neg' });
+    if (v.formerHero !== null && v.formerHero !== undefined) n.push({ k: 'h', e: sim.heroes[v.formerHero], rel: 'かつての姿', tone: 'neu' });
+    if (v.heroId !== null && v.heroId !== undefined) n.push({ k: 'h', e: sim.heroes[v.heroId], rel: '改心後の姿', tone: 'pos' });
+    if (v.fromStudent !== undefined) n.push({ k: 's', e: sim.students[v.fromStudent], rel: '学生時代', tone: 'neu' });
+    const vs = Object.entries(v.vs || {}).map(([id, r]) => [sim.heroes[+id], r]).sort((a, b) => b[1][0] + b[1][1] - a[1][0] - a[1][1]);
+    for (const [h, r] of vs.slice(0, 5)) n.push({ k: 'h', e: h, rel: `対戦 ${r[0]}勝${r[1]}敗`, tone: 'neg' });
+    for (const id of [...new Set(v.caughtBy)].slice(0, 2)) n.push({ k: 'h', e: sim.heroes[id], rel: '逮捕された', tone: 'neg' });
+    return egoGraph(v, 'v', n);
+  }
+  function studentGraph(s) {
+    const n = [];
+    const St = (id) => sim.students[id];
+    if (s.friend !== null) n.push({ k: 's', e: St(s.friend), rel: '親友', tone: 'pos' });
+    if (s.partner !== null) n.push({ k: 's', e: St(s.partner), rel: '恋人', tone: 'pos' });
+    else if (s.crush !== null) n.push({ k: 's', e: St(s.crush), rel: '気になる人', tone: 'pos' });
+    if (s.rival !== null) n.push({ k: 's', e: St(s.rival), rel: 'ライバル', tone: 'neu' });
+    for (const id of s.internHist || []) n.push({ k: 'h', e: sim.heroes[id], rel: 'インターン先', tone: 'pos' });
+    for (const id of sim.academy.schools[s.school].teachers.slice(0, 2)) if (sim.heroes[id].status === 'retired') n.push({ k: 'h', e: sim.heroes[id], rel: '先生', tone: 'pos' });
+    if (s.heroId !== null) n.push({ k: 'h', e: sim.heroes[s.heroId], rel: 'プロになった姿', tone: 'pos' });
+    if (s.villainId !== null) n.push({ k: 'v', e: sim.villains[s.villainId], rel: '堕ちた姿', tone: 'neg' });
+    return egoGraph(s, 's', n);
+  }
+
+  // ---------- ヴィランの詳細 ----------
+  const yen2 = (man) => (man >= 10000 ? `${(man / 10000).toFixed(1)}億円` : `${num(man)}万円`);
+  const VSIT = { taunt: '犯行時', lose: '逮捕時', win: '逃走時', escape: '脱獄', boss: '黒幕' };
+  function villainTimeline(v) {
+    const ev = [{ y: v.debutYear, d: -1, t: '出現', s: `${esc(v.pref)}で初めて確認される` }];
+    for (const l of sim.log) {
+      if (l.v !== v.id) continue;
+      const H2 = (id) => (id !== null && id !== undefined ? link('h', sim.heroes[id]) : '');
+      const map = { saga: ['因縁', `${H2(l.h)}との因縁、${esc(l.res)}`], serial: ['連続事件', `『${esc(l.title)}』（${esc(l.res)}）`], foreign: ['国際手配', `${esc(l.c)}から上陸`], vally: ['加勢', `宿敵${H2(l.h)}のピンチに加勢`], reform: ['改心', `ヒーロー${H2(l.h)}として再出発`], fallen: ['堕落', `元ヒーロー${H2(l.h)}がヴィランに`], kaiju: ['怪獣', esc(l.res)], boss: ['審判の日', esc(l.res)], death: ['殺害', `${H2(l.h)}を死に至らしめる`], arc: ['物語', `『${esc(l.title)}』の敵役`], school: ['学園', esc(l.kind)] }[l.t];
+      if (map) ev.push({ y: l.y, d: l.d, t: map[0], s: map[1] });
+    }
+    ev.sort((a, b) => a.y - b.y || a.d - b.d);
+    return `<ol class="life">${ev.map((e) => `<li class="lk-${['殺害', '堕落'].includes(e.t) ? 'death' : ['改心'].includes(e.t) ? 'comeback' : 'debut'}"><span class="ly">${e.y}</span><b>${esc(e.t)}</b><span>${e.s}</span></li>`).join('')}</ol>`;
+  }
+  function showVillain(v) {
+    const isK = v.kind === 'kaiju';
+    const dl = (rows) => `<dl class="dl">${rows.filter((x) => x[1] !== undefined && x[1] !== null && x[1] !== '').map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>`;
+    if (isK) {
+      openModal(`<div class="pf-head"><span class="threat big tS">S</span><div class="pf-title"><h2 id="modalTitle">${esc(v.name)}</h2><p class="pf-epi">怪獣・出現地 ${esc(v.pref)}</p></div><span class="st${v.status === 'free' ? ' bad' : ''}">${VSTATUS[v.status] || ''}</span></div>
+        <div class="pf-cards"><section class="pcard"><h4>正体</h4><p class="bio">${esc(v.power.desc)}</p>${dl([['推定戦闘力', v.kpow], ['年齢', esc(String(v.age))], ['撃退したヒーロー', [...new Set(v.caughtBy)].map((id) => link('h', sim.heroes[id])).join('、')]])}</section></div>
+        <h4 class="sect">記録された事件</h4>${histList(v)}`);
+      return;
+    }
+    const b = sim.bounty(v);
+    const ls = v.lastSeen;
+    const vs = Object.entries(v.vs || {}).map(([id, r]) => [sim.heroes[+id], r]).sort((a, b2) => b2[1][0] + b2[1][1] - a[1][0] - a[1][1]);
+    const totW = vs.reduce((a, x) => a + x[1][0], 0), totL = vs.reduce((a, x) => a + x[1][1], 0);
+    const rel = [];
+    if (v.org !== null) rel.push(['所属', link('o', sim.orgs[v.org]) + (v.orgRank === 'boss' ? '（首領）' : v.orgRank === 'exec' ? '（幹部）' : '（構成員）')]);
+    if (v.formerOrg !== undefined && v.org === null) rel.push(['元所属', link('o', sim.orgs[v.formerOrg])]);
+    if (v.nemesis !== null) rel.push(['宿敵', link('h', sim.heroes[v.nemesis]) + (v.saga ? `（${v.saga.since}年〜・${v.saga.n}戦、${v.saga.closed ? '決着済み' : '継続中'}）` : '')]);
+    if (v.grudge !== undefined && v.grudge !== null) rel.push(['復讐の相手', link('h', sim.heroes[v.grudge])]);
+    if (v.sealed) rel.push(['状態', '特別監獄に収監（脱獄不能）']);
+    if (v.isBoss) rel.push(['正体', 'すべての組織を束ねる黒幕']);
+    if (v.formerHero !== null) rel.push(['ヒーロー時代', link('h', sim.heroes[v.formerHero])]);
+    if (v.heroId !== null && v.heroId !== undefined) rel.push(['改心後', link('h', sim.heroes[v.heroId])]);
+    const quotes = (v.quotes || []).slice().reverse().slice(0, 8);
+    openModal(`
+      <div class="pf-head"><span class="threat big t${v.threat}">${v.threat}</span><div class="pf-title"><h2 id="modalTitle">${esc(v.name)}</h2><p class="pf-epi">${v.alias ? `「${esc(v.alias)}」` : ''}<span>${v.org !== null ? esc(sim.orgs[v.org].name) : '単独犯'}</span></p></div><span class="st${v.status === 'free' ? ' bad' : ''}">${VSTATUS[v.status] || ''}</span></div>
+      ${pfNav([['vp-wanted', '手配書'], ['vp-power', '能力'], ['vp-graph', '相関図'], ['vp-vs', '対戦成績'], ['vp-life', '経歴'], ['vp-hist', '事件']])}
+      <section class="wanted${v.status !== 'free' ? ' closed' : ''}" id="vp-wanted">
+        <div class="wanted-top"><b>${v.status === 'free' ? '指名手配' : VSTATUS[v.status] || ''}</b><span>超常対策庁</span></div>
+        <h3>${esc(v.name)}</h3>
+        <p class="wanted-alias">${v.alias ? `通称「${esc(v.alias)}」` : ''}</p>
+        <div class="wanted-bounty"><span>懸賞金</span><b>${yen2(b)}</b></div>
+        <dl class="dl">${[['本名', esc(v.real)], ['性別・年齢', `${esc(v.gender)}・${v.age}歳`], ['出身', esc(v.pref)], ['最終目撃', ls ? `${ls.y}年${G.dateOf(ls.y, ls.d).getMonth() + 1}月・${esc(ls.pref)}` : '―'], ['潜伏先の噂', esc(v.hideout || '')], ['手口', esc(v.mo || '')], ['犯行の署名', esc(v.sign || '')]].filter((x) => x[1]).map(([a, c]) => `<dt>${a}</dt><dd>${c}</dd>`).join('')}</dl>
+      </section>
+      <div class="pf-cards">
+        <section class="pcard" id="vp-power"><h4>能力</h4>
+          <div class="power"><b>${esc(v.power.name)}</b><span class="stars">${stars(v.power.tier + (v.tierBonus || 0))}</span><p>${esc(v.power.desc)}</p></div>
+          ${radar(v.stats, true)}</section>
+        <section class="pcard"><h4>人物像</h4>
+          ${v.vtraits ? `<div class="traits">${v.vtraits.map((t) => `<span>${esc(t)}</span>`).join('')}</div>` : ''}
+          ${dl([['好きなもの', esc(v.likes || '')], ['苦手なもの', esc(v.vweak || '')], ['素顔', esc(v.quirk || '')]])}
+          <h5>悪の道へ</h5><p class="bio">${esc(v.origin)}。目的は「${esc(v.motive)}」。</p></section>
+        <section class="pcard"><h4>犯罪記録</h4>
+          <div class="recs"><div><b>${v.crimes}</b><span>犯行</span></div><div><b>${totW}</b><span>ヒーローに勝利</span></div><div><b>${v.escapes}</b><span>脱獄</span></div><div><b>${v.notoriety}</b><span>悪名</span></div></div>
+          ${rel.length ? dl(rel) : ''}</section>
+        <section class="pcard"><h4>語録</h4>${quotes.length ? `<ul class="quotes">${quotes.map((x) => `<li><span class="qs">${VSIT[x.s] || ''}</span><p>「${rich(x.t)}」</p><small>${G.fmtDate(x.y, x.d)}</small></li>`).join('')}</ul>` : '<p class="mapnote">まだ記録された言葉はありません。</p>'}</section>
+        <section class="pcard wide" id="vp-graph"><h4>相関図</h4>${villainGraph(v)}</section>
+        <section class="pcard wide" id="vp-vs"><h4>ヒーローとの対戦成績<small>（${totW}勝${totL}敗）</small></h4>
+          ${vs.length ? `<table class="rec"><thead><tr><th>ヒーロー</th><th>対戦</th><th>${esc(v.name)}から見た成績</th></tr></thead><tbody>${vs.slice(0, 12).map(([h, r]) => `<tr><td>${hlink(h)}</td><td class="nu">${r[0] + r[1]}回</td><td><span class="vsbar"><i class="w" style="width:${(r[0] / (r[0] + r[1])) * 100}%"></i></span> ${r[0]}勝${r[1]}敗</td></tr>`).join('')}</tbody></table>` : '<p class="mapnote">まだヒーローとの対戦記録はありません。</p>'}</section>
+        <section class="pcard wide" id="vp-life"><h4>経歴</h4>${villainTimeline(v)}</section>
+      </div>
+      <h4 class="sect" id="vp-hist">記録された事件</h4>${histList(v)}`);
+  }
+  function wantedPoster(v) {
+    return `<button type="button" class="poster nm v" data-k="v" data-id="${v.id}"><span class="pt">WANTED</span><span class="pn">${esc(v.name)}</span><span class="pa">${v.alias ? esc(v.alias) : esc(v.power.name)}</span><span class="pb">${yen2(sim.bounty(v))}</span><span class="threat t${v.threat}">${v.threat}</span></button>`;
+  }
+
+  // ---------- 目次・戻る・ちらっと見る ----------
+  const anc = (html, id) => (html ? html.replace(/^(\s*<\w+)/, `$1 id="${id}"`) : '');
+  function pfNav(items) { return `<nav class="pfnav" aria-label="目次">${items.map(([id, l]) => `<button type="button" data-jump="${id}">${l}</button>`).join('')}</nav>`; }
+  const mstack = [];
+  let entityOpening = false;
+  function openEntity(k, id) {
+    const x = ent(k, id);
+    if (!x) return;
+    if ($('#modal').hidden) mstack.length = 0;
+    mstack.push([k, id]);
+    entityOpening = true;
+    if (k === 'h') showHero(x); else if (k === 's') showStudent(x); else if (k === 'v') showVillain(x); else if (k === 'o') showOrg(x); else showTeam(x);
+    entityOpening = false;
+  }
+  function peekHTML(k, x) {
+    if (k === 'h') return `<div class="pk-h">${emblem(x)}<b>${esc(x.name)}</b>${x.rank ? `<span class="pk-r">${x.rank}位</span>` : statusChip(x)}</div><p>${esc(x.power.name)}・${esc(x.pref)}・${esc(x.agency)}</p>${x.cast ? `<p>${castTag(x)}</p>` : ''}${x.epithet ? `<p class="pk-m">「${esc(x.epithet)}」</p>` : ''}`;
+    if (k === 'v') return x.kind === 'kaiju' ? `<div class="pk-h"><span class="threat tS">S</span><b>${esc(x.name)}</b></div><p>怪獣・${esc(VSTATUS[x.status] || '')}</p>` : `<div class="pk-h"><span class="threat t${x.threat}">${x.threat}</span><b>${esc(x.name)}</b><span class="pk-r">${esc(VSTATUS[x.status] || '')}</span></div><p>${esc(x.power.name)}${x.org !== null ? '・' + esc(sim.orgs[x.org].name) : ''}</p><p class="pk-m">${x.alias ? '「' + esc(x.alias) + '」・' : ''}懸賞金 ${yen2(sim.bounty(x))}</p>`;
+    if (k === 's') return `<div class="pk-h"><b>${esc(x.real)}</b>${x.hname ? `<span class="pk-r">「${esc(x.hname)}」</span>` : ''}</div><p>${esc(D.academies[x.school].short)}${x.status === 'enrolled' ? ` ${x.grade}年` : ''}・${esc(x.power.name)}</p>`;
+    return '';
+  }
+
   // ---------- 詳細 ----------
   function openModal(html) {
-    $('#modalBody').innerHTML = html;
+    if (!entityOpening) mstack.length = 0;
+    const back = mstack.length > 1 ? `<button type="button" class="mback" id="modalBack">← 戻る</button>` : '';
+    $('#modalBody').innerHTML = back + html;
+    $('.modal').scrollTop = 0;
     $('#modal').hidden = false;
     $('#modalClose').focus();
   }
-  function closeModal() { $('#modal').hidden = true; cancelCountdown(); }
+  function closeModal() { $('#modal').hidden = true; cancelCountdown(); hidePeek(); mstack.length = 0; }
+  function hidePeek() { const p = $('#peek'); if (p) p.hidden = true; }
 
   function spark(hist) {
     if (hist.length < 2) return '<p class="empty">ランキング推移は週ごとに記録されます。</p>';
@@ -1557,10 +1738,11 @@
     openModal(`
       <div class="pf-head">${emblem(h, true)}<div class="pf-title"><h2 id="modalTitle">${esc(h.name)}</h2><p class="pf-epi">${h.epithet ? `「${esc(h.epithet)}」` : ''}${h.nickname ? `<span>愛称 ${esc(h.nickname)}</span>` : ''}</p></div>${h.rank ? `<span class="rkbig">${h.rank}<small>位</small></span>` : ''}${favBtn(h)}${statusChip(h)}</div>
       ${h.catch ? `<p class="catch">「${esc(h.catch)}」</p>` : ''}
+      ${pfNav([['hp-basic', '基本'], ['hp-graph', '相関図'], ['hp-story', 'あらすじ'], ['hp-mem', '縁と記憶'], ['hp-life', '人生年表'], ['hp-hist', '活動記録']])}
       ${h.cast ? `<p class="castnote">${castTag(h)} 物語の中心人物（${(sim.cast.find((e) => e.k === 'h' && e.id === h.id) || {}).y || ''}年〜）</p>` : ''}
       ${h.titles.length ? `<div class="titles">${h.titles.map((t) => `<span>${t.y} ${esc(t.title)}</span>`).join('')}</div>` : ''}
       <div class="pf-cards">
-        <section class="pcard"><h4>基本データ</h4>${dl([
+        <section class="pcard" id="hp-basic"><h4>基本データ</h4>${dl([
           ['本名', h.masked ? '非公開' : esc(h.real)], ['性別', esc(h.gender)], ['年齢', typeof h.age === 'number' ? h.age + '歳' : esc(h.age)],
           ['誕生日', h.birthday ? `${h.birthday[0]}月${h.birthday[1]}日` : ''], ['血液型', h.blood ? h.blood + '型' : ''], ['身長・体重', h.height ? `${h.height}cm・${h.weight}kg` : ''],
           ['出身', esc(h.pref + h.city)], ['出身校', esc(h.school || '')], ['前職', esc(h.job)], ['家族', esc(h.family || '')],
@@ -1586,41 +1768,13 @@
         <section class="pcard"><h4>ファンの声と支持層</h4>${fanSection(h)}</section>
         <section class="pcard"><h4>語録</h4>${quoteList(h)}</section>
         ${rel.length ? `<section class="pcard"><h4>人間関係</h4>${dl(rel)}</section>` : ''}
+        <section class="pcard wide" id="hp-graph"><h4>相関図</h4>${heroGraph(h)}</section>
         ${arcSection(h)}
-        <section class="pcard wide"><h4>年ごとのあらすじ</h4>${synopsisSection(h)}</section>
-        <section class="pcard"><h4>縁と記憶</h4>${memList(h)}</section>
-        <section class="pcard wide"><h4>人生年表</h4>${lifeTimeline(h)}</section>
+        <section class="pcard wide" id="hp-story"><h4>年ごとのあらすじ</h4>${synopsisSection(h)}</section>
+        <section class="pcard" id="hp-mem"><h4>縁と記憶</h4>${memList(h)}</section>
+        <section class="pcard wide" id="hp-life"><h4>人生年表</h4>${lifeTimeline(h)}</section>
       </div>
-      <h4 class="sect">活動記録</h4>${histList(h)}`);
-  }
-
-  function showVillain(v) {
-    const rel = [];
-    if (v.org !== null) rel.push(['所属', link('o', sim.orgs[v.org]) + (v.orgRank === 'boss' ? '（首領）' : v.orgRank === 'exec' ? '（幹部）' : '')]);
-    if (v.formerOrg !== undefined && v.org === null) rel.push(['元所属', link('o', sim.orgs[v.formerOrg])]);
-    if (v.nemesis !== null) rel.push(['宿敵', link('h', sim.heroes[v.nemesis]) + (v.saga ? `（${v.saga.since}年〜・${v.saga.n}戦、${v.saga.closed ? '決着済み' : '継続中'}）` : '')]);
-    if (v.sealed) rel.push(['状態', '特別監獄に収監（脱獄不能）']);
-    if (v.isBoss) rel.push(['正体', 'すべての組織を束ねる黒幕']);
-    if (v.caughtBy.length) rel.push([v.kind === 'kaiju' ? '撃破' : '逮捕した', [...new Set(v.caughtBy)].map((id) => link('h', sim.heroes[id])).join('、')]);
-    if (v.formerHero !== null) rel.push(['ヒーロー時代', link('h', sim.heroes[v.formerHero])]);
-    if (v.heroId !== null && v.heroId !== undefined) rel.push(['改心後', link('h', sim.heroes[v.heroId])]);
-    const isK = v.kind === 'kaiju';
-    openModal(`
-      <div class="pf-head"><span class="threat big t${v.threat}">${v.threat}</span><h2 id="modalTitle">${esc(v.name)}</h2><span class="st${v.status === 'free' ? ' bad' : ''}">${VSTATUS[v.status] || ''}</span></div>
-      <p class="pf-sub">${isK ? '怪獣' : `本名 ${esc(v.real)}・${esc(v.gender)}・${v.age}歳`}・出現地 ${esc(v.pref)}</p>
-      <div class="pf-grid">
-        <div>
-          <div class="power"><b>${esc(v.power.name)}</b>${isK ? '' : `<span class="stars">${stars(v.power.tier + (v.tierBonus || 0))}</span>`}<p>${esc(v.power.desc)}</p></div>
-          ${isK ? '' : `<h4>素性</h4><p class="bio">${esc(v.origin)}。目的は「${esc(v.motive)}」。</p>`}
-          ${rel.length ? `<h4>関係</h4><dl class="dl">${rel.map(([a, b]) => `<dt>${a}</dt><dd>${b}</dd>`).join('')}</dl>` : ''}
-        </div>
-        <div>
-          ${isK ? `<h4>推定戦闘力</h4><p class="bio">${v.kpow}</p>` : `<h4>能力値</h4>${radar(v.stats, true)}`}
-          <h4>記録</h4>
-          <div class="recs"><div><b>${v.crimes}</b><span>犯行</span></div><div><b>${v.wins}</b><span>ヒーロー撃退</span></div><div><b>${v.escapes}</b><span>逃走</span></div><div><b>${v.notoriety}</b><span>悪名</span></div></div>
-        </div>
-      </div>
-      <h4>記録された事件</h4>${histList(v)}`);
+      <h4 class="sect" id="hp-hist">活動記録</h4>${histList(h)}`);
   }
 
   function showOrg(o) {
@@ -1729,9 +1883,17 @@
       const nm = e.target.closest('.nm');
       if (nm) {
         cancelCountdown();
-        const x = ent(nm.dataset.k, +nm.dataset.id);
-        if (nm.dataset.k === 'h') showHero(x); else if (nm.dataset.k === 's') showStudent(x); else if (nm.dataset.k === 'v') showVillain(x); else if (nm.dataset.k === 'o') showOrg(x); else showTeam(x);
+        hidePeek();
+        openEntity(nm.dataset.k, +nm.dataset.id);
         return;
+      }
+      const gn = e.target.closest('.gnode');
+      if (gn && !gn.classList.contains('c')) { hidePeek(); openEntity(gn.dataset.k, +gn.dataset.id); return; }
+      if (e.target.id === 'modalBack') { mstack.pop(); const [k, id] = mstack.pop(); openEntity(k, id); return; }
+      const jp = e.target.closest('[data-jump]');
+      if (jp) { const t = document.getElementById(jp.dataset.jump); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      const mb = e.target.closest('#menuBtn');
+      if (mb) { const c = $('.controls'); c.classList.toggle('open'); mb.setAttribute('aria-expanded', String(c.classList.contains('open'))); return;
       }
       const sp = e.target.closest('.sp');
       if (sp) {
@@ -1837,6 +1999,23 @@
       if (e.target.dataset && e.target.dataset.slot !== undefined) { sim.setSlot(+e.target.dataset.slot, e.target.value); sim.teacher.plan = 'custom'; renderTeach(); }
       if (e.target.id === 'autoYear') { ui.autoYear = e.target.checked; save(); if (!ui.autoYear) cancelCountdown(); }
     });
+    if (window.matchMedia('(hover: hover)').matches) {
+      document.addEventListener('mouseover', (e) => {
+        const t = e.target.closest('.nm.h, .nm.v, .nm.s, .gnode');
+        if (!t || t.classList.contains('c')) return;
+        const x = ent(t.dataset.k, +t.dataset.id);
+        const html = x ? peekHTML(t.dataset.k, x) : '';
+        if (!html) return;
+        const pk = $('#peek');
+        pk.innerHTML = html;
+        pk.hidden = false;
+        const r = t.getBoundingClientRect();
+        const w = 260;
+        pk.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left)) + 'px';
+        pk.style.top = (r.bottom + 6 + 140 > window.innerHeight ? r.top - pk.offsetHeight - 6 : r.bottom + 6) + 'px';
+      });
+      document.addEventListener('mouseout', (e) => { if (e.target.closest('.nm, .gnode')) hidePeek(); });
+    }
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !$('#extra').hidden) { closeExtra(true); return; }
     if (e.key === 'Escape' && !$('#modal').hidden) closeModal();
@@ -1846,6 +2025,8 @@
     $('#rosterSort').addEventListener('change', () => { ui.rosterLimit = 60; renderRoster(); });
     $('#rosterStatus').addEventListener('change', () => { ui.rosterLimit = 60; renderRoster(); });
     $('#vStatus').addEventListener('change', () => { ui.vLimit = 60; renderVillains(); });
+    $('#vSort').addEventListener('change', () => { ui.vLimit = 60; renderVillains(); });
+    $('#vQ').addEventListener('input', () => { ui.vLimit = 60; renderVillains(); });
     $('#recYear').addEventListener('change', (e) => { ui.recYear = e.target.value; ui.recLimit = 80; renderRecords(); });
     window.matchMedia('(min-width: 900px)').addEventListener('change', () => setTab(ui.tab));
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveWorld(); });

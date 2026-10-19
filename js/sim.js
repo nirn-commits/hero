@@ -277,6 +277,7 @@
         if (R.chance(0.08)) diff *= 1.8;
       }
       ctx.pref = pref.name;
+      this.lastIncPref = pref.name;
       ctx.loc = this.loc(pref);
       ctx.city = pref.name + R.pick(pref.cities);
       if (v) ctx.v = V(v);
@@ -1042,7 +1043,7 @@
 
     // ---------- 保存 ----------
     toJSON() {
-      const { ranked, today, ...rest } = this;
+      const { ranked, today, lastIncPref, ...rest } = this;
       return { ...rest, usedNames: [...this.usedNames], usedOrgNames: [...this.usedOrgNames], rng: R.s, ver: 3 };
     }
 

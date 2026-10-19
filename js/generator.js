@@ -17,7 +17,8 @@
     return { full: s[0] + ' ' + given, sur: s };
   }
 
-  function heroNameRaw(gender, power, pref) {
+  function heroNameRaw(gender, power, pref, kana, aca) {
+    if (D.acaName && R.chance(aca ? 0.75 : 0.3)) return D.acaName(gender, power, kana || null);
     const g = gKey(gender);
     const ew = D.elemWords[power.el] || D.elemWords.odd;
     const any = () => D.elemWords[R.pick(Object.keys(D.elemWords))];
@@ -92,7 +93,7 @@
     if (!opts.stats) stats.mor = Math.round(clamp(R.gauss(66, 14) + morBase, 5, 100));
     const career = opts.rookie ? 0 : R.int(0, clamp(age - 16, 0, 35));
     const gotochiName = R.chance(0.07);
-    const name = opts.name || uniq(sim, () => (gotochiName ? R.pick(pref.sp) + R.pick(D.gotochiSuffix) : heroNameRaw(gender, power, pref)));
+    const name = opts.name || uniq(sim, () => (gotochiName ? R.pick(pref.sp) + R.pick(D.gotochiSuffix) : heroNameRaw(gender, power, pref, typeof rn === 'string' ? null : rn.sur[1])));
     const originT = power.skill ? R.pick(D.skillOrigins) : R.pick(D.origins);
     const h = {
       kind: 'hero', id: sim.heroes.length, name, oldNames: [],

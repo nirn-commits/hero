@@ -32,9 +32,10 @@
       <button type="button" class="sp" data-sp="3" id="sp3" title="速い">▶▶▶</button>
       <button type="button" class="sp" data-sp="4" id="sp4" title="最速">⚡</button>
       <button type="button" class="ctl" id="skipBtn">年末まで</button>
-      <button type="button" class="ctl" id="sizeBtn" title="文字の大きさ">文字 標準</button>
-      <button type="button" class="ctl" id="slotBtn">スロット1</button>
-      <button type="button" class="ctl" id="newBtn">新しい世界</button>
+      <button type="button" class="ctl only-narrow" id="menuBtn" aria-expanded="false">メニュー</button>
+      <button type="button" class="ctl more2" id="sizeBtn" title="文字の大きさ">文字 標準</button>
+      <button type="button" class="ctl more2" id="slotBtn">スロット1</button>
+      <button type="button" class="ctl more2" id="newBtn">新しい世界</button>
     </div>
   </div>
   <div class="flash" id="flash">
@@ -88,12 +89,22 @@
           <option value="live">現役のみ</option>
           <option value="all">すべて</option>
           <option value="gone">引退・殉職・闇堕ち</option>
+          <option value="fav">推しのみ</option>
+          <option value="cast">物語の中心人物のみ</option>
         </select>
       </div>
       <div id="rosterList"></div>
     </div>
     <div class="pane" id="pane-villain" hidden>
       <div class="tools">
+        <input id="vQ" type="search" placeholder="名前・通り名・能力・組織で検索" aria-label="ヴィランを検索">
+        <select id="vSort" aria-label="並び順">
+          <option value="threat">危険度順</option>
+          <option value="bounty">懸賞金順</option>
+          <option value="crimes">犯行数順</option>
+          <option value="wins">ヒーローへの勝利数順</option>
+          <option value="new">新しい順</option>
+        </select>
         <select id="vStatus" aria-label="ヴィランの状態">
           <option value="free">逃亡中</option>
           <option value="captured">収監中</option>
@@ -111,6 +122,7 @@
 
 <div class="toasts" id="toasts" aria-live="polite"></div>
 <div class="extra" id="extra" hidden></div>
+<div class="peek" id="peek" hidden></div>
 
 <div class="modal" id="modal" hidden>
   <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
@@ -123,6 +135,7 @@
 <!--BUILD:SCRIPTS-->
 <script src="js/core.js"></script>
 <script src="js/data_names.js"></script>
+<script src="js/data_names2.js"></script>
 <script src="js/data_world.js"></script>
 <script src="js/data_powers.js"></script>
 <script src="js/data_people.js"></script>
@@ -138,6 +151,7 @@
 <script src="js/data_teacher.js"></script>
 <script src="js/data_memory.js"></script>
 <script src="js/data_arc.js"></script>
+<script src="js/data_villain.js"></script>
 <script src="js/generator.js"></script>
 <script src="js/sim.js"></script>
 <script src="js/story.js"></script>
@@ -149,6 +163,7 @@
 <script src="js/teacher2.js"></script>
 <script src="js/memory.js"></script>
 <script src="js/arc.js"></script>
+<script src="js/villain2.js"></script>
 <script src="js/ui.js"></script>
 <!--/BUILD:SCRIPTS-->
 </body>
