@@ -812,3 +812,4 @@ figcaption small { font-weight: 400; color: var(--mute); margin-left: 6px; font-
   .sp { min-width: 34px; padding: 4px 6px; }
 }
 .rk-table td.sc { white-space: nowrap; }
+#teachBtn[aria-pressed="true"] { background: var(--good); color: #fff; border-color: var(--good); }

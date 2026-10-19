@@ -104,7 +104,7 @@
     for (let i = 0; i < 100 && saving; i++) await new Promise((r) => setTimeout(r, 30));
     await saveWorld();
   }
-  function updateSlotBtn() { $('#slotBtn').textContent = `スロット${ui.slot}`; }
+  function updateSlotBtn() { $('#slotBtn').textContent = `セーブ：スロット${ui.slot}`; }
   async function showSlots() {
     cancelCountdown();
     const metas = {};
@@ -1414,6 +1414,9 @@
   function updateTeachTab() {
     const on = !!(sim && sim.teacherMode);
     $('#tab-teach').hidden = !on;
+    const tb = $('#teachBtn');
+    tb.textContent = `教師モード ${on ? 'ON' : 'OFF'}`;
+    tb.setAttribute('aria-pressed', String(on));
     if (!on && ui.tab === 'teach') setTab('dash');
   }
 
@@ -1942,6 +1945,14 @@
       if (arcb) { cancelCountdown(); showArc(sim.arcs[+arcb.dataset.arc]); return; }
       if (id === 'newBtn' || e.target.dataset.act === 'new') { showNewWorld(); return; }
       if (id === 'slotBtn') { showSlots(); return; }
+      if (id === 'teachBtn') {
+        sim.teacherMode = !sim.teacherMode;
+        updateTeachTab();
+        setFlash(sim.teacherMode ? '教師モードをONにしました。「担任」タブから着任・指導ができます。' : '教師モードをOFFにしました。担任の記録は残っていて、ONに戻すと続きから再開します。');
+        if (sim.teacherMode) setTab('teach'); else if (currentPane() === 'school') renderSchool();
+        saveWorld();
+        return;
+      }
       const sg = e.target.closest('[data-slotgo]');
       if (sg) { switchSlot(+sg.dataset.slotgo); return; }
       const ca = e.target.closest('[data-cans]');
